@@ -1,0 +1,287 @@
+// ServiceMonster unified dashboard — Postgres schema
+// See SERVICEMONSTER_DASHBOARD_SPEC.md §4.2 for the source shape.
+// Deviations from spec: no Company.apiTokenEncrypted (tokens are Vercel env vars).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Company {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  slug        String   @unique
+  smCompanyId String
+  tokenEnvVar String
+  timezone    String   @default("America/New_York")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  accounts     Account[]
+  leads        Lead[]
+  employees    Employee[]
+  orders       Order[]
+  appointments Appointment[]
+  payments     Payment[]
+  activities   Activity[]
+  syncStates   SyncState[]
+  syncRuns     SyncRun[]
+
+  @@map("companies")
+}
+
+model SyncState {
+  id         Int      @id @default(autoincrement())
+  companyId  Int
+  resource   String
+  lastCursor DateTime
+  updatedAt  DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, resource])
+  @@map("sync_state")
+}
+
+model SyncRun {
+  id              Int       @id @default(autoincrement())
+  companyId       Int
+  resource        String
+  startedAt       DateTime  @default(now())
+  finishedAt      DateTime?
+  status          String
+  recordsSeen     Int       @default(0)
+  recordsUpserted Int       @default(0)
+  errorMessage    String?
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@index([companyId, resource, startedAt])
+  @@map("sync_runs")
+}
+
+model Account {
+  id           Int       @id @default(autoincrement())
+  companyId    Int
+  smId         String
+  accountName  String?
+  accountType  String?
+  isCommercial Boolean   @default(false)
+  email        String?
+  phone        String?
+  leadSource   String?
+  balance      Decimal?  @db.Decimal(12, 2)
+  smCreatedAt  DateTime?
+  smModifiedAt DateTime?
+  smPayload    Json
+  syncedAt     DateTime  @default(now())
+
+  company    Company    @relation(fields: [companyId], references: [id])
+  orders     Order[]
+  activities Activity[]
+
+  @@unique([companyId, smId])
+  @@index([companyId, accountType])
+  @@index([companyId, smModifiedAt])
+  @@map("accounts")
+}
+
+model Lead {
+  id             Int       @id @default(autoincrement())
+  companyId      Int
+  smId           String
+  source         String?
+  status         String?
+  assignedTo     String?
+  estimatedValue Decimal?  @db.Decimal(12, 2)
+  smCreatedAt    DateTime?
+  smModifiedAt   DateTime?
+  smPayload      Json
+  syncedAt       DateTime  @default(now())
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, smId])
+  @@index([companyId, status])
+  @@map("leads")
+}
+
+model Employee {
+  id        Int      @id @default(autoincrement())
+  companyId Int
+  smId      String
+  firstName String?
+  lastName  String?
+  role      String?
+  isActive  Boolean  @default(true)
+  smPayload Json
+  syncedAt  DateTime @default(now())
+
+  company      Company           @relation(fields: [companyId], references: [id])
+  appointments AppointmentTech[]
+
+  @@unique([companyId, smId])
+  @@map("employees")
+}
+
+model Order {
+  id           Int       @id @default(autoincrement())
+  companyId    Int
+  smId         String
+  accountId    Int?
+  smAccountId  String
+  orderNumber  String?
+  orderType    String
+  orderGroup   String?
+  status       String?
+  subtotal     Decimal?  @db.Decimal(12, 2)
+  grandTotal   Decimal?  @db.Decimal(12, 2)
+  amountPaid   Decimal?  @db.Decimal(12, 2)
+  leadSource   String?
+  salesRepSmId String?
+  completedAt  DateTime?
+  smCreatedAt  DateTime?
+  smModifiedAt DateTime?
+  smPayload    Json
+  syncedAt     DateTime  @default(now())
+
+  company      Company       @relation(fields: [companyId], references: [id])
+  account      Account?      @relation(fields: [accountId], references: [id])
+  items        OrderItem[]
+  appointments Appointment[]
+  payments     Payment[]
+
+  @@unique([companyId, smId])
+  @@index([companyId, orderType, completedAt])
+  @@index([companyId, smModifiedAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id                  Int      @id @default(autoincrement())
+  orderId             Int
+  companyId           Int
+  smId                String?
+  itemType            String?
+  name                String
+  normalizedServiceId Int?
+  quantity            Decimal? @db.Decimal(10, 2)
+  unitPrice           Decimal? @db.Decimal(12, 2)
+  lineTotal           Decimal? @db.Decimal(12, 2)
+  smPayload           Json
+
+  order   Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  service ServiceCatalog? @relation(fields: [normalizedServiceId], references: [id])
+
+  @@index([companyId, name])
+  @@map("order_items")
+}
+
+model ServiceCatalog {
+  id            Int     @id @default(autoincrement())
+  canonicalName String  @unique
+  category      String
+  isActive      Boolean @default(true)
+
+  aliases    ServiceAlias[]
+  orderItems OrderItem[]
+
+  @@map("service_catalog")
+}
+
+model ServiceAlias {
+  id        Int    @id @default(autoincrement())
+  serviceId Int
+  aliasName String
+  companyId Int?
+
+  service ServiceCatalog @relation(fields: [serviceId], references: [id])
+
+  @@unique([aliasName, companyId])
+  @@map("service_aliases")
+}
+
+model Appointment {
+  id              Int       @id @default(autoincrement())
+  companyId       Int
+  smId            String
+  orderId         Int?
+  smOrderId       String
+  appointmentType String?
+  status          String?
+  scheduledStart  DateTime?
+  scheduledEnd    DateTime?
+  actualStart     DateTime?
+  actualEnd       DateTime?
+  estimatedHours  Decimal?  @db.Decimal(6, 2)
+  actualHours     Decimal?  @db.Decimal(6, 2)
+  smCreatedAt     DateTime?
+  smModifiedAt    DateTime?
+  smPayload       Json
+  syncedAt        DateTime  @default(now())
+
+  company       Company           @relation(fields: [companyId], references: [id])
+  order         Order?            @relation(fields: [orderId], references: [id])
+  assignedTechs AppointmentTech[]
+
+  @@unique([companyId, smId])
+  @@index([companyId, scheduledStart])
+  @@map("appointments")
+}
+
+model AppointmentTech {
+  id            Int      @id @default(autoincrement())
+  appointmentId Int
+  employeeId    Int
+  timeLogHours  Decimal? @db.Decimal(6, 2)
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  employee    Employee    @relation(fields: [employeeId], references: [id])
+
+  @@unique([appointmentId, employeeId])
+  @@map("appointment_techs")
+}
+
+model Payment {
+  id        Int       @id @default(autoincrement())
+  companyId Int
+  smId      String
+  orderId   Int?
+  smOrderId String
+  amount    Decimal   @db.Decimal(12, 2)
+  method    String?
+  paidAt    DateTime?
+  smPayload Json
+  syncedAt  DateTime  @default(now())
+
+  company Company @relation(fields: [companyId], references: [id])
+  order   Order?  @relation(fields: [orderId], references: [id])
+
+  @@unique([companyId, smId])
+  @@index([companyId, paidAt])
+  @@map("payments")
+}
+
+model Activity {
+  id           Int       @id @default(autoincrement())
+  companyId    Int
+  smId         String
+  accountId    Int?
+  smAccountId  String?
+  activityType String?
+  subject      String?
+  result       String?
+  occurredAt   DateTime?
+  smPayload    Json
+  syncedAt     DateTime  @default(now())
+
+  company Company  @relation(fields: [companyId], references: [id])
+  account Account? @relation(fields: [accountId], references: [id])
+
+  @@unique([companyId, smId])
+  @@index([companyId, activityType, occurredAt])
+  @@map("activities")
+}
