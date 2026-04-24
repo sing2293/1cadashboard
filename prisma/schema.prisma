@@ -14,9 +14,8 @@ model Company {
   id          Int      @id @default(autoincrement())
   name        String   @unique
   slug        String   @unique
-  smCompanyId String
-  tokenEnvVar String
-  timezone    String   @default("America/New_York")
+  smCompanyId String   @default("")
+  timezone    String   @default("America/Toronto")
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
 
