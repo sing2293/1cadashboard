@@ -139,20 +139,24 @@ export function KpiCard({
 
   return (
     <div
-      className={`fade-up relative overflow-hidden rounded-xl border border-zinc-200/80 dark:border-zinc-800 bg-gradient-to-br ${t.bg} to-transparent p-5 shadow-sm`}
+      className="fade-up relative overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-lg shadow-black/10"
       style={{ animationDelay: `${delay}ms` }}
     >
+      <div
+        className="absolute -top-12 -right-12 size-32 rounded-full opacity-25 blur-2xl"
+        style={{ backgroundColor: TONE[tone].bar }}
+      />
       <span className={`absolute left-0 top-3 bottom-3 w-1 rounded-r ${t.stripe}`} />
-      <div className="text-[11px] font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+      <div className="text-[11px] font-medium uppercase tracking-wider text-[var(--text-muted)] relative">
         {label}
       </div>
       <div
-        className={`mt-2 font-semibold tabular-nums ${valueClass} ${t.text}`}
+        className={`mt-2 font-semibold tabular-nums ${valueClass} ${t.text} relative`}
       >
         {value}
       </div>
       {hintNode && (
-        <div className="mt-1.5 text-xs font-medium tabular-nums">{hintNode}</div>
+        <div className="mt-1.5 text-xs font-medium tabular-nums relative">{hintNode}</div>
       )}
     </div>
   );
@@ -170,13 +174,11 @@ export function Section({
   padded?: boolean;
 }) {
   return (
-    <section className="fade-up mt-8 rounded-xl border border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm overflow-hidden">
-      <div className="px-6 pt-5 pb-3 border-b border-zinc-100 dark:border-zinc-800/60">
-        <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-          {title}
-        </h2>
+    <section className="fade-up mt-6 rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-lg shadow-black/10 overflow-hidden">
+      <div className="px-6 pt-5 pb-3 border-b border-[var(--border)]">
+        <h2 className="text-sm font-semibold text-[var(--text)]">{title}</h2>
         {subtitle && (
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">{subtitle}</p>
+          <p className="text-xs text-[var(--text-muted)] mt-0.5">{subtitle}</p>
         )}
       </div>
       <div className={padded ? "px-6 py-5" : ""}>{children}</div>
@@ -406,6 +408,235 @@ export function DonutChart({
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+export function AreaChart({
+  series,
+  ariaLabel,
+  format = (n) => String(n),
+  height = 280,
+}: {
+  series: { label: string; tone: Tone; points: { x: string; y: number }[] }[];
+  ariaLabel: string;
+  format?: (n: number) => string;
+  height?: number;
+}) {
+  if (series.length === 0 || series[0].points.length === 0) {
+    return (
+      <div className="text-sm text-[var(--text-muted)] py-12 text-center">
+        No data.
+      </div>
+    );
+  }
+  const W = 800;
+  const H = height;
+  const PAD_L = 56;
+  const PAD_R = 16;
+  const PAD_T = 16;
+  const PAD_B = 32;
+  const innerW = W - PAD_L - PAD_R;
+  const innerH = H - PAD_T - PAD_B;
+
+  const xLabels = series[0].points.map((p) => p.x);
+  const n = xLabels.length;
+  const max = Math.max(
+    1,
+    ...series.flatMap((s) => s.points.map((p) => p.y)),
+  );
+  const xAt = (i: number) =>
+    PAD_L + (n === 1 ? innerW / 2 : (i / (n - 1)) * innerW);
+  const yAt = (v: number) => PAD_T + innerH - (v / max) * innerH;
+
+  // Y-axis ticks
+  const ticks = [0.25, 0.5, 0.75, 1].map((f) => ({
+    y: yAt(max * f),
+    label: format(max * f),
+  }));
+
+  // Smooth path via simple monotonic interpolation: connect with quadratic
+  // Bezier through midpoints, anchored at actual data points for accuracy.
+  function buildLinePath(pts: { x: number; y: number }[]): string {
+    if (pts.length === 0) return "";
+    if (pts.length === 1) return `M ${pts[0].x} ${pts[0].y}`;
+    let d = `M ${pts[0].x} ${pts[0].y}`;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const a = pts[i];
+      const b = pts[i + 1];
+      const cx = (a.x + b.x) / 2;
+      d += ` Q ${a.x} ${a.y}, ${cx} ${(a.y + b.y) / 2} T ${b.x} ${b.y}`;
+    }
+    return d;
+  }
+
+  const labelEvery = Math.max(1, Math.ceil(n / 12));
+
+  return (
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      className="w-full h-auto"
+      role="img"
+      aria-label={ariaLabel}
+    >
+      <defs>
+        {series.map((s) => {
+          const t = TONE[s.tone];
+          return (
+            <linearGradient
+              key={s.label}
+              id={`area-${s.label.replace(/\W/g, "")}`}
+              x1="0"
+              y1="0"
+              x2="0"
+              y2="1"
+            >
+              <stop offset="0%" stopColor={t.bar} stopOpacity={0.45} />
+              <stop offset="100%" stopColor={t.bar} stopOpacity={0.02} />
+            </linearGradient>
+          );
+        })}
+      </defs>
+
+      {ticks.map((tk, i) => (
+        <g key={i}>
+          <line
+            x1={PAD_L}
+            y1={tk.y}
+            x2={W - PAD_R}
+            y2={tk.y}
+            stroke="currentColor"
+            strokeOpacity={0.06}
+            strokeDasharray="3 3"
+          />
+          <text
+            x={PAD_L - 8}
+            y={tk.y + 3}
+            textAnchor="end"
+            className="fill-[var(--text-muted)] text-[10px] tabular-nums"
+          >
+            {tk.label}
+          </text>
+        </g>
+      ))}
+
+      {series.map((s, idx) => {
+        const t = TONE[s.tone];
+        const pts = s.points.map((p, i) => ({ x: xAt(i), y: yAt(p.y) }));
+        const linePath = buildLinePath(pts);
+        const baseY = PAD_T + innerH;
+        const areaPath = `${linePath} L ${pts[pts.length - 1].x} ${baseY} L ${pts[0].x} ${baseY} Z`;
+        const id = `area-${s.label.replace(/\W/g, "")}`;
+        return (
+          <g key={s.label}>
+            <path
+              d={areaPath}
+              fill={`url(#${id})`}
+              className="fade-up"
+              style={{ animationDelay: `${idx * 100}ms` }}
+            />
+            <path
+              d={linePath}
+              fill="none"
+              stroke={t.bar}
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="fade-up"
+              style={{ animationDelay: `${idx * 100 + 150}ms` }}
+            >
+              <title>{s.label}</title>
+            </path>
+          </g>
+        );
+      })}
+
+      {xLabels.map((label, i) => {
+        if (i !== n - 1 && i % labelEvery !== 0) return null;
+        return (
+          <text
+            key={i}
+            x={xAt(i)}
+            y={H - 12}
+            textAnchor="middle"
+            className="fill-[var(--text-muted)] text-[10px] tabular-nums"
+          >
+            {label}
+          </text>
+        );
+      })}
+    </svg>
+  );
+}
+
+export function RingGauge({
+  value,
+  total,
+  label,
+  centerLabel,
+  tone = "indigo",
+  size = 110,
+}: {
+  value: number;
+  total: number;
+  label: string;
+  centerLabel: string;
+  tone?: Tone;
+  size?: number;
+}) {
+  const R = 40;
+  const C = 2 * Math.PI * R;
+  const pct = total > 0 ? Math.max(0, Math.min(1, value / total)) : 0;
+  const dash = pct * C;
+  const t = TONE[tone];
+  const id = `ring-${tone}-${label.replace(/\W/g, "")}`;
+  return (
+    <div className="flex flex-col items-center">
+      <svg
+        viewBox="0 0 100 100"
+        width={size}
+        height={size}
+        className="-rotate-90"
+      >
+        <defs>
+          <linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor={t.barTo} />
+            <stop offset="100%" stopColor={t.bar} />
+          </linearGradient>
+        </defs>
+        <circle
+          cx={50}
+          cy={50}
+          r={R}
+          fill="none"
+          stroke="var(--border)"
+          strokeWidth={8}
+        />
+        <circle
+          cx={50}
+          cy={50}
+          r={R}
+          fill="none"
+          stroke={`url(#${id})`}
+          strokeWidth={8}
+          strokeLinecap="round"
+          strokeDasharray={`${dash} ${C}`}
+          className="ring-anim"
+          style={
+            { ["--circ" as string]: `${C}` } as React.CSSProperties
+          }
+        />
+        <text
+          x={50}
+          y={56}
+          textAnchor="middle"
+          transform="rotate(90 50 50)"
+          className="fill-[var(--text)] text-[14px] font-semibold tabular-nums"
+        >
+          {centerLabel}
+        </text>
+      </svg>
+      <div className="mt-2 text-xs text-[var(--text-muted)]">{label}</div>
     </div>
   );
 }

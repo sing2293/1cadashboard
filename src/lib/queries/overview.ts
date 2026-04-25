@@ -85,3 +85,80 @@ export async function getCompaniesOverview(
 
   return { companies: rows, totals };
 }
+
+export type MonthlyByCompany = {
+  months: string[]; // YYYY-MM
+  series: { slug: string; name: string; values: number[] }[];
+};
+
+export async function getMonthlyRevenueByCompany(
+  monthsBack: number,
+): Promise<MonthlyByCompany> {
+  const rows = await prisma.$queryRaw<
+    Array<{ slug: string; name: string; month: Date; revenue: number | null }>
+  >`
+    SELECT
+      c.slug AS slug,
+      c.name AS name,
+      date_trunc('month', o."completedAt") AS month,
+      SUM(o."grandTotal")::float AS revenue
+    FROM orders o
+    JOIN companies c ON c.id = o."companyId"
+    WHERE o."orderType" = 'Invoice'
+      AND o."completedAt" >= date_trunc('month', now()) - (${monthsBack}::int * interval '1 month')
+    GROUP BY c.slug, c.name, month
+    ORDER BY month ASC, c.slug ASC
+  `;
+  // Build a sorted month set from data
+  const monthSet = new Set<string>();
+  for (const r of rows) monthSet.add(r.month.toISOString().slice(0, 7));
+  const months = Array.from(monthSet).sort();
+
+  // Pivot to per-company series with zeros for missing months
+  const byCompany = new Map<string, { name: string; map: Map<string, number> }>();
+  for (const r of rows) {
+    const key = r.slug;
+    if (!byCompany.has(key)) byCompany.set(key, { name: r.name, map: new Map() });
+    byCompany.get(key)!.map.set(
+      r.month.toISOString().slice(0, 7),
+      Number(r.revenue ?? 0),
+    );
+  }
+
+  const series = Array.from(byCompany.entries()).map(([slug, info]) => ({
+    slug,
+    name: info.name,
+    values: months.map((m) => info.map.get(m) ?? 0),
+  }));
+
+  return { months, series };
+}
+
+export type CategoryRevenue = { category: string; revenue: number };
+
+export async function getOverviewCategories(
+  range: ResolvedRange,
+  limit = 6,
+): Promise<CategoryRevenue[]> {
+  const rows = await prisma.$queryRaw<
+    Array<{ category: string | null; revenue: number | null }>
+  >`
+    SELECT
+      COALESCE(sc.category, '(unmapped)') AS category,
+      COALESCE(SUM(oi."lineTotal")::float, 0) AS revenue
+    FROM order_items oi
+    JOIN orders o ON o.id = oi."orderId"
+    LEFT JOIN service_catalog sc ON sc.id = oi."normalizedServiceId"
+    WHERE o."orderType" = 'Invoice'
+      AND o."completedAt" >= ${range.from}
+      AND o."completedAt" < ${range.to}
+      AND COALESCE(sc.category, '(unmapped)') <> '(unmapped)'
+    GROUP BY category
+    ORDER BY revenue DESC
+    LIMIT ${limit}
+  `;
+  return rows.map((r) => ({
+    category: r.category ?? "(unmapped)",
+    revenue: Number(r.revenue ?? 0),
+  }));
+}

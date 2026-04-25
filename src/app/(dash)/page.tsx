@@ -6,17 +6,23 @@ import {
   getMonthlyRevenue,
   getTopAccounts,
 } from "@/lib/queries/executive";
-import { getCompaniesOverview } from "@/lib/queries/overview";
 import {
+  getCompaniesOverview,
+  getMonthlyRevenueByCompany,
+  getOverviewCategories,
+} from "@/lib/queries/overview";
+import {
+  AreaChart,
+  BarChart,
+  DonutChart,
+  KpiCard,
+  PageHeader,
+  RingGauge,
+  Section,
   fmtInt,
   fmtMoney,
   fmtMoneyCompact,
-  KpiCard,
   pctDelta,
-  Section,
-  BarChart,
-  DonutChart,
-  PageHeader,
   type Tone,
 } from "./_components";
 
@@ -35,6 +41,17 @@ const COMPANY_HEX: Record<string, string> = {
   default: "#71717a",
 };
 
+const CATEGORY_TONE: Record<string, Tone> = {
+  duct: "indigo",
+  "dryer-vent": "sky",
+  carpet: "violet",
+  upholstery: "fuchsia",
+  hvac: "emerald",
+  sealing: "teal",
+  sanitization: "amber",
+  insulation: "rose",
+};
+
 export default async function ExecutivePage({
   searchParams,
 }: {
@@ -45,7 +62,11 @@ export default async function ExecutivePage({
 
   // No company filter (or "all") → cross-company overview.
   if (!sp.company || sp.company === "all") {
-    const { companies, totals } = await getCompaniesOverview(range);
+    const [{ companies, totals }, monthly, categories] = await Promise.all([
+      getCompaniesOverview(range),
+      getMonthlyRevenueByCompany(12),
+      getOverviewCategories(range, 6),
+    ]);
 
     const slices = companies
       .filter((c) => c.revenue > 0)
@@ -56,15 +77,27 @@ export default async function ExecutivePage({
         href: `/?company=${c.slug}&range=${range.preset}`,
       }));
 
+    const areaSeries = monthly.series.map((s) => ({
+      label: s.name,
+      tone: COMPANY_TONES[s.slug] ?? ("indigo" as Tone),
+      points: monthly.months.map((m, i) => ({
+        x: m.slice(5),
+        y: s.values[i] ?? 0,
+      })),
+    }));
+
+    const totalCategoryRevenue =
+      categories.reduce((a, c) => a + c.revenue, 0) || 1;
+
     return (
-      <main className="px-6 py-8">
+      <main className="px-6 py-6">
         <div className="mx-auto max-w-7xl">
           <PageHeader
             title="All companies"
             subtitle={`${range.label} · click a company to drill in`}
           />
 
-          <section className="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <section className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-4">
             <KpiCard
               label="Total revenue"
               value={fmtMoney(totals.revenue)}
@@ -91,27 +124,91 @@ export default async function ExecutivePage({
             />
           </section>
 
-          <Section
-            title="Revenue split"
-            subtitle={`${range.label} · click a slice or row to open that company`}
-          >
-            <DonutChart
-              ariaLabel="Revenue per company"
-              centerLabel="Total revenue"
-              centerValue={fmtMoney(totals.revenue)}
-              slices={slices}
-            />
-          </Section>
+          <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2">
+              <Section
+                title="Monthly revenue · by company"
+                subtitle="Last 12 months · invoiced"
+              >
+                <AreaChart
+                  ariaLabel="Monthly revenue per company"
+                  format={fmtMoneyCompact}
+                  series={areaSeries}
+                />
+                <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
+                  {areaSeries.map((s) => (
+                    <span
+                      key={s.label}
+                      className="inline-flex items-center gap-2 text-[var(--text-muted)]"
+                    >
+                      <span
+                        className="size-2.5 rounded-sm"
+                        style={{
+                          backgroundColor:
+                            COMPANY_HEX[
+                              s.label.toLowerCase().replace(/\s/g, "")
+                            ] ?? "#6366f1",
+                        }}
+                      />
+                      {s.label}
+                    </span>
+                  ))}
+                </div>
+              </Section>
+            </div>
 
-          <section className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Section
+              title="Revenue split"
+              subtitle={range.label}
+            >
+              <DonutChart
+                ariaLabel="Revenue per company"
+                centerLabel="Total"
+                centerValue={fmtMoneyCompact(totals.revenue)}
+                slices={slices}
+              />
+            </Section>
+          </div>
+
+          {categories.length > 0 && (
+            <Section
+              title="Service categories · cross-company"
+              subtitle={`Top categories by line-item revenue · ${range.label.toLowerCase()}`}
+            >
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+                {categories.map((c) => {
+                  const pct = c.revenue / totalCategoryRevenue;
+                  return (
+                    <RingGauge
+                      key={c.category}
+                      value={c.revenue}
+                      total={totalCategoryRevenue}
+                      label={c.category}
+                      centerLabel={`${(pct * 100).toFixed(0)}%`}
+                      tone={CATEGORY_TONE[c.category] ?? "indigo"}
+                    />
+                  );
+                })}
+              </div>
+            </Section>
+          )}
+
+          <section className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
             {companies.map((c, i) => (
               <Link
                 key={c.slug}
                 href={`/?company=${c.slug}&range=${range.preset}`}
-                className="fade-up group rounded-xl border border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm overflow-hidden hover:shadow-md hover:border-zinc-300 dark:hover:border-zinc-700 transition"
+                className="fade-up group rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-lg shadow-black/10 overflow-hidden hover:border-indigo-500/50 hover:shadow-indigo-500/10 transition"
                 style={{ animationDelay: `${240 + i * 60}ms` }}
               >
                 <div className="relative px-5 pt-5 pb-4">
+                  <div
+                    className="absolute -top-10 -right-10 size-24 rounded-full opacity-30 blur-xl"
+                    style={{
+                      backgroundColor:
+                        COMPANY_HEX[c.slug] ?? COMPANY_HEX.default,
+                    }}
+                  />
                   <span
                     className="absolute left-0 top-3 bottom-3 w-1 rounded-r"
                     style={{
@@ -119,44 +216,44 @@ export default async function ExecutivePage({
                         COMPANY_HEX[c.slug] ?? COMPANY_HEX.default,
                     }}
                   />
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">
+                  <div className="flex items-center justify-between relative">
+                    <h3 className="text-base font-semibold text-[var(--text)]">
                       {c.name}
                     </h3>
-                    <span className="text-xs text-zinc-400 group-hover:text-zinc-700 dark:group-hover:text-zinc-300 transition">
+                    <span className="text-xs text-[var(--text-muted)] group-hover:text-indigo-400 transition">
                       Open →
                     </span>
                   </div>
-                  <div className="mt-4 grid grid-cols-2 gap-y-3 gap-x-4">
+                  <div className="mt-4 grid grid-cols-2 gap-y-3 gap-x-4 relative">
                     <div>
-                      <div className="text-[11px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                      <div className="text-[11px] uppercase tracking-wider text-[var(--text-muted)]">
                         Revenue
                       </div>
-                      <div className="text-lg font-semibold tabular-nums text-zinc-900 dark:text-zinc-50">
+                      <div className="text-lg font-semibold tabular-nums text-[var(--text)]">
                         {fmtMoney(c.revenue)}
                       </div>
                     </div>
                     <div>
-                      <div className="text-[11px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                      <div className="text-[11px] uppercase tracking-wider text-[var(--text-muted)]">
                         Invoices
                       </div>
-                      <div className="text-lg font-semibold tabular-nums text-zinc-900 dark:text-zinc-50">
+                      <div className="text-lg font-semibold tabular-nums text-[var(--text)]">
                         {fmtInt(c.invoices)}
                       </div>
                     </div>
                     <div>
-                      <div className="text-[11px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                      <div className="text-[11px] uppercase tracking-wider text-[var(--text-muted)]">
                         Avg invoice
                       </div>
-                      <div className="text-sm font-medium tabular-nums text-zinc-700 dark:text-zinc-300">
+                      <div className="text-sm font-medium tabular-nums text-[var(--text-muted)]">
                         {fmtMoney(c.avgInvoice)}
                       </div>
                     </div>
                     <div>
-                      <div className="text-[11px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                      <div className="text-[11px] uppercase tracking-wider text-[var(--text-muted)]">
                         Outstanding AR
                       </div>
-                      <div className="text-sm font-medium tabular-nums text-zinc-700 dark:text-zinc-300">
+                      <div className="text-sm font-medium tabular-nums text-[var(--text-muted)]">
                         {fmtMoney(c.outstandingAr)}
                       </div>
                     </div>
@@ -174,8 +271,8 @@ export default async function ExecutivePage({
   const company = await resolveCompany(sp.company);
   if (!company) {
     return (
-      <main className="px-6 py-10 text-zinc-700">
-        Unknown company. <Link href="/">Back to overview.</Link>
+      <main className="px-6 py-10 text-[var(--text-muted)]">
+        Unknown company. <Link href="/" className="text-indigo-400">Back to overview.</Link>
       </main>
     );
   }
@@ -187,7 +284,7 @@ export default async function ExecutivePage({
   ]);
 
   return (
-    <main className="px-6 py-8">
+    <main className="px-6 py-6">
       <div className="mx-auto max-w-7xl">
         <PageHeader
           title={`${company.name} · Executive`}
@@ -196,7 +293,7 @@ export default async function ExecutivePage({
             .slice(0, 10)} → ${range.to.toISOString().slice(0, 10)}`}
         />
 
-        <section className="mt-8 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+        <section className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
           <KpiCard
             label="Revenue"
             value={fmtMoney(kpis.revenue)}
@@ -232,17 +329,19 @@ export default async function ExecutivePage({
 
         <Section
           title="Revenue by month"
-          subtitle="Last 12 months · invoiced revenue"
+          subtitle="Last 12 months · invoiced"
         >
-          <BarChart
-            ariaLabel="Revenue by month"
-            tone="emerald"
+          <AreaChart
+            ariaLabel="Monthly revenue"
             format={fmtMoneyCompact}
-            data={monthly.map((m) => ({
-              label: m.month.slice(5),
-              value: m.revenue,
-              tooltip: `${m.month}: ${fmtMoney(m.revenue)} (${m.invoices} invoices)`,
-            }))}
+            series={[
+              {
+                label: company.name,
+                tone:
+                  COMPANY_TONES[company.slug] ?? ("indigo" as Tone),
+                points: monthly.map((m) => ({ x: m.month.slice(5), y: m.revenue })),
+              },
+            ]}
           />
         </Section>
 
@@ -252,17 +351,17 @@ export default async function ExecutivePage({
           padded={false}
         >
           <table className="w-full text-sm">
-            <thead className="text-left text-[11px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400 bg-zinc-50/60 dark:bg-zinc-900/40">
+            <thead className="text-left text-[11px] uppercase tracking-wider text-[var(--text-muted)] bg-white/[0.02]">
               <tr>
                 <th className="px-6 py-2.5 font-medium">Account</th>
                 <th className="px-6 py-2.5 font-medium text-right">Invoices</th>
                 <th className="px-6 py-2.5 font-medium text-right">Revenue</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/60">
+            <tbody className="divide-y divide-[var(--border)]">
               {top.length === 0 ? (
                 <tr>
-                  <td colSpan={3} className="px-6 py-6 text-zinc-500 text-center">
+                  <td colSpan={3} className="px-6 py-6 text-[var(--text-muted)] text-center">
                     No invoices in this range.
                   </td>
                 </tr>
@@ -270,15 +369,15 @@ export default async function ExecutivePage({
                 top.map((row) => (
                   <tr
                     key={row.smId}
-                    className="hover:bg-zinc-50/60 dark:hover:bg-zinc-800/40 transition-colors"
+                    className="hover:bg-white/[0.02] transition-colors"
                   >
-                    <td className="px-6 py-2.5 text-zinc-900 dark:text-zinc-100 truncate max-w-md">
+                    <td className="px-6 py-2.5 text-[var(--text)] truncate max-w-md">
                       {row.accountName ?? "—"}
                     </td>
-                    <td className="px-6 py-2.5 text-right text-zinc-700 dark:text-zinc-300 tabular-nums">
+                    <td className="px-6 py-2.5 text-right text-[var(--text-muted)] tabular-nums">
                       {fmtInt(row.invoices)}
                     </td>
-                    <td className="px-6 py-2.5 text-right font-medium text-zinc-900 dark:text-zinc-100 tabular-nums">
+                    <td className="px-6 py-2.5 text-right font-medium text-[var(--text)] tabular-nums">
                       {fmtMoney(row.revenue)}
                     </td>
                   </tr>
