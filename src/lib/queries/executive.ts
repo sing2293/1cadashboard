@@ -49,13 +49,21 @@ export async function getKpis(companyId: number, range: DateRange): Promise<Kpis
       },
       _sum: { grandTotal: true },
     }),
-    prisma.account.count({
-      where: {
-        companyId,
-        accountType: "Customer",
-        smCreatedAt: { gte: range.from, lt: range.to },
-      },
-    }),
+    // "New customers" = accounts whose FIRST invoice falls in the range.
+    // We can't use smCreatedAt because the SM /accounts endpoint doesn't
+    // return a creation date.
+    prisma.$queryRaw<Array<{ n: number }>>`
+      SELECT COUNT(*)::int AS n FROM (
+        SELECT o."smAccountId", MIN(o."completedAt") AS first_invoice_at
+        FROM orders o
+        WHERE o."companyId" = ${companyId}
+          AND o."orderType" = 'Invoice'
+          AND o."completedAt" IS NOT NULL
+        GROUP BY o."smAccountId"
+      ) firsts
+      WHERE firsts.first_invoice_at >= ${range.from}
+        AND firsts.first_invoice_at < ${range.to}
+    `,
     prisma.$queryRaw<Array<{ ar: number | null }>>`
       SELECT COALESCE(SUM("grandTotal" - COALESCE("amountPaid", 0)), 0)::float AS ar
       FROM orders
@@ -70,7 +78,7 @@ export async function getKpis(companyId: number, range: DateRange): Promise<Kpis
     revenuePrev: Number(prev._sum.grandTotal ?? 0),
     invoices: current._count._all,
     avgInvoice: Number(current._avg.grandTotal ?? 0),
-    newCustomers,
+    newCustomers: newCustomers[0]?.n ?? 0,
     outstandingAr: ar[0]?.ar ?? 0,
   };
 }

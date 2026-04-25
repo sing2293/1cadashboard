@@ -49,14 +49,14 @@ export async function getOpsKpis(companyId: number): Promise<OpsKpis> {
       where: {
         companyId,
         scheduledStart: { gte: weekStart, lt: weekEnd },
-        status: { in: ["Completed", "Posted"] },
+        status: "Complete",
       },
     }),
     prisma.appointment.count({
       where: {
         companyId,
         scheduledStart: { gte: thirtyDaysAgo },
-        status: { in: ["Cancelled", "Canceled"] },
+        status: "Cancelled",
       },
     }),
     prisma.appointment.count({
@@ -89,38 +89,49 @@ export async function getTechUtilization(
   companyId: number,
   daysBack = 30,
 ): Promise<TechUtilization[]> {
-  return prisma.$queryRaw<TechUtilization[]>`
-    WITH appt_techs AS (
-      SELECT
-        a.id AS appt_id,
-        a."actualHours" AS actual,
-        a."estimatedHours" AS est,
-        (a."smPayload"->>'createdBy') AS sm_user
-      FROM appointments a
-      WHERE a."companyId" = ${companyId}
-        AND a."scheduledStart" > now() - (${daysBack}::int * interval '1 day')
-        AND a."actualHours" IS NOT NULL
-    )
+  // The /jobs payload's `techs` field is a comma-separated list of full names
+  // ("Alexandre Normand" or "Vanessa Guigue L'Heureux, Chris Lugo"). Split it
+  // and credit each tech individually for the appointment + its hours. Jobs
+  // with no `techs` value are skipped (they wouldn't represent tech work).
+  const rows = await prisma.$queryRaw<
+    Array<{
+      tech: string;
+      scheduledHours: number;
+      actualHours: number;
+      appointments: number;
+    }>
+  >`
     SELECT
-      e."smId" AS "smId",
-      e."firstName" AS "firstName",
-      e."lastName" AS "lastName",
-      COALESCE(SUM(t.est)::float, 0) AS "scheduledHours",
-      COALESCE(SUM(t.actual)::float, 0) AS "actualHours",
-      COUNT(t.appt_id)::int AS appointments,
-      CASE WHEN COALESCE(SUM(t.est),0) > 0
-           THEN (SUM(t.actual)/SUM(t.est))::float
-           ELSE NULL END AS utilization
-    FROM appt_techs t
-    JOIN employees e
-      ON e."companyId" = ${companyId}
-      AND lower(e."firstName") = lower(t.sm_user)
-    WHERE e."isActive" = true
-    GROUP BY e."smId", e."firstName", e."lastName"
-    HAVING COUNT(t.appt_id) > 0
+      TRIM(t.tech) AS tech,
+      COALESCE(SUM(a."estimatedHours")::float, 0) AS "scheduledHours",
+      COALESCE(SUM(a."actualHours")::float, 0) AS "actualHours",
+      COUNT(*)::int AS appointments
+    FROM appointments a
+    CROSS JOIN LATERAL regexp_split_to_table(
+      COALESCE(a."smPayload"->>'techs', ''), ',\s*'
+    ) AS t(tech)
+    WHERE a."companyId" = ${companyId}
+      AND a."scheduledStart" > now() - (${daysBack}::int * interval '1 day')
+      AND a."actualHours" IS NOT NULL
+      AND TRIM(t.tech) <> ''
+    GROUP BY TRIM(t.tech)
+    HAVING COUNT(*) > 0
     ORDER BY appointments DESC
     LIMIT 15
   `;
+  return rows.map((r) => {
+    const parts = r.tech.split(/\s+/);
+    return {
+      smId: r.tech,
+      firstName: parts[0] ?? r.tech,
+      lastName: parts.length > 1 ? parts.slice(1).join(" ") : null,
+      scheduledHours: Number(r.scheduledHours),
+      actualHours: Number(r.actualHours),
+      appointments: r.appointments,
+      utilization:
+        r.scheduledHours > 0 ? r.actualHours / r.scheduledHours : null,
+    };
+  });
 }
 
 export async function getDailyAppointments(
@@ -133,7 +144,7 @@ export async function getDailyAppointments(
     SELECT
       date_trunc('day', "scheduledStart") AS day,
       COUNT(*) AS scheduled,
-      COUNT(*) FILTER (WHERE status IN ('Completed','Posted')) AS completed
+      COUNT(*) FILTER (WHERE status = 'Complete') AS completed
     FROM appointments
     WHERE "companyId" = ${companyId}
       AND "scheduledStart" > now() - (${daysBack}::int * interval '1 day')

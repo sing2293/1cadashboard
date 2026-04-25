@@ -209,9 +209,14 @@ export function BarChart({
   const innerW = W - PAD_X * 2;
   const innerH = H - PAD_Y_TOP - PAD_Y_BOT;
   const step = innerW / data.length;
-  const barWidth = step * 0.66;
+  const barWidth = Math.max(2, step * 0.66);
   const t = TONE[tone];
   const gid = `bar-grad-${tone}`;
+  // Show at most ~12 labels regardless of bar count, picking evenly spaced
+  // indices and always including the last bar so the right edge has context.
+  const labelEvery = Math.max(1, Math.ceil(data.length / 12));
+  const showLabel = (i: number) =>
+    i === data.length - 1 || i % labelEvery === 0;
 
   // Y-axis ticks (3 lines for visual reference)
   const ticks = [0.25, 0.5, 0.75, 1].map((f) => ({
@@ -273,18 +278,135 @@ export function BarChart({
             >
               <title>{d.tooltip ?? `${d.label}: ${format(d.value)}`}</title>
             </rect>
-            <text
-              x={x + barWidth / 2}
-              y={H - 12}
-              textAnchor="middle"
-              className="fill-current text-[10px] opacity-60 tabular-nums"
-            >
-              {d.label}
-            </text>
+            {showLabel(i) && (
+              <text
+                x={x + barWidth / 2}
+                y={H - 12}
+                textAnchor="middle"
+                className="fill-current text-[10px] opacity-60 tabular-nums"
+              >
+                {d.label}
+              </text>
+            )}
           </g>
         );
       })}
     </svg>
+  );
+}
+
+export function DonutChart({
+  slices,
+  centerLabel,
+  centerValue,
+  ariaLabel,
+}: {
+  slices: { label: string; value: number; tone: Tone; href?: string }[];
+  centerLabel: string;
+  centerValue: string;
+  ariaLabel: string;
+}) {
+  const total = slices.reduce((a, s) => a + s.value, 0);
+  if (total === 0) {
+    return (
+      <div className="text-sm text-zinc-500 py-12 text-center">No data.</div>
+    );
+  }
+  const cx = 160;
+  const cy = 160;
+  const R = 130;
+  const r = 78; // inner hole — donut
+
+  // Walk each slice as an annular arc path.
+  let acc = 0;
+  const arcs = slices.map((s) => {
+    const startAngle = (acc / total) * Math.PI * 2 - Math.PI / 2;
+    acc += s.value;
+    const endAngle = (acc / total) * Math.PI * 2 - Math.PI / 2;
+    const large = endAngle - startAngle > Math.PI ? 1 : 0;
+    const x1 = cx + R * Math.cos(startAngle);
+    const y1 = cy + R * Math.sin(startAngle);
+    const x2 = cx + R * Math.cos(endAngle);
+    const y2 = cy + R * Math.sin(endAngle);
+    const xi1 = cx + r * Math.cos(endAngle);
+    const yi1 = cy + r * Math.sin(endAngle);
+    const xi2 = cx + r * Math.cos(startAngle);
+    const yi2 = cy + r * Math.sin(startAngle);
+    const path = `M ${x1} ${y1} A ${R} ${R} 0 ${large} 1 ${x2} ${y2} L ${xi1} ${yi1} A ${r} ${r} 0 ${large} 0 ${xi2} ${yi2} Z`;
+    return { ...s, path, share: s.value / total };
+  });
+
+  const fill = (tone: Tone) => TONE[tone].bar;
+
+  return (
+    <div className="flex flex-col md:flex-row items-center gap-8">
+      <svg
+        viewBox="0 0 320 320"
+        className="w-full max-w-xs"
+        role="img"
+        aria-label={ariaLabel}
+      >
+        {arcs.map((a, i) => {
+          const slice = (
+            <path
+              d={a.path}
+              fill={fill(a.tone)}
+              className="transition-opacity hover:opacity-80"
+              style={{
+                animation: `fade-up 320ms ${i * 80}ms cubic-bezier(0.22,1,0.36,1) backwards`,
+              }}
+            >
+              <title>{`${a.label}: ${(a.share * 100).toFixed(1)}%`}</title>
+            </path>
+          );
+          return (
+            <g key={a.label}>
+              {a.href ? <a href={a.href}>{slice}</a> : slice}
+            </g>
+          );
+        })}
+        <text
+          x={cx}
+          y={cy - 6}
+          textAnchor="middle"
+          className="fill-zinc-500 dark:fill-zinc-400 text-[11px] uppercase tracking-wider"
+        >
+          {centerLabel}
+        </text>
+        <text
+          x={cx}
+          y={cy + 18}
+          textAnchor="middle"
+          className="fill-zinc-900 dark:fill-zinc-50 text-xl font-semibold tabular-nums"
+        >
+          {centerValue}
+        </text>
+      </svg>
+      <ul className="flex-1 w-full space-y-2.5">
+        {arcs.map((a) => (
+          <li key={a.label}>
+            <a
+              href={a.href ?? "#"}
+              className="group flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/40 transition-colors"
+            >
+              <span
+                className="size-3 rounded-sm shrink-0"
+                style={{ backgroundColor: fill(a.tone) }}
+              />
+              <span className="flex-1 text-sm text-zinc-900 dark:text-zinc-100 truncate">
+                {a.label}
+              </span>
+              <span className="text-sm font-medium tabular-nums text-zinc-700 dark:text-zinc-300">
+                {fmtMoney(a.value)}
+              </span>
+              <span className="text-xs text-zinc-500 w-12 text-right tabular-nums">
+                {(a.share * 100).toFixed(1)}%
+              </span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

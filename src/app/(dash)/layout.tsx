@@ -10,7 +10,6 @@ export default async function DashLayout({
   children: React.ReactNode;
 }) {
   const companies = await listCompanies();
-  const fallback = companies[0]?.slug ?? "1cleanair";
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-white dark:from-zinc-950 dark:to-zinc-900">
@@ -28,7 +27,7 @@ export default async function DashLayout({
           <NavTabs />
           <div className="flex items-center gap-2">
             <DateRangeSelect defaultValue="30d" />
-            <CompanySelect options={companies} defaultSlug={fallback} />
+            <CompanySelect options={companies} />
           </div>
         </div>
       </header>

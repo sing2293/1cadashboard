@@ -11,20 +11,35 @@ export type SalesKpis = {
 export type LeadSourceRow = { source: string; count: number; revenue: number };
 
 export async function getSalesKpis(companyId: number): Promise<SalesKpis> {
-  const now = new Date();
-  const thirty = new Date(now);
-  thirty.setUTCDate(thirty.getUTCDate() - 30);
-
+  // Lead.smCreatedAt is populated; account.smCreatedAt isn't (the SM /accounts
+  // endpoint doesn't return a creation date). For accounts we proxy with
+  // smModifiedAt, which catches new accounts and re-flagged ones.
   const [leads, prospects, customers, estimates] = await Promise.all([
     prisma.lead.count({
-      where: { companyId, smCreatedAt: { gte: thirty } },
+      where: {
+        companyId,
+        smCreatedAt: { gte: new Date(Date.now() - 30 * 86_400_000) },
+      },
     }),
     prisma.account.count({
-      where: { companyId, accountType: "Prospect", smCreatedAt: { gte: thirty } },
+      where: {
+        companyId,
+        accountType: "Prospect",
+        smModifiedAt: { gte: new Date(Date.now() - 30 * 86_400_000) },
+      },
     }),
-    prisma.account.count({
-      where: { companyId, accountType: "Customer", smCreatedAt: { gte: thirty } },
-    }),
+    // Customers: count accounts whose first invoice landed in the last 30d.
+    prisma.$queryRaw<Array<{ n: number }>>`
+      SELECT COUNT(*)::int AS n FROM (
+        SELECT o."smAccountId", MIN(o."completedAt") AS first_invoice_at
+        FROM orders o
+        WHERE o."companyId" = ${companyId}
+          AND o."orderType" = 'Invoice'
+          AND o."completedAt" IS NOT NULL
+        GROUP BY o."smAccountId"
+      ) firsts
+      WHERE firsts.first_invoice_at > now() - interval '30 days'
+    `,
     prisma.order.aggregate({
       where: { companyId, orderType: "Estimate" },
       _sum: { grandTotal: true },
@@ -35,7 +50,7 @@ export async function getSalesKpis(companyId: number): Promise<SalesKpis> {
   return {
     newLeads30: leads,
     newProspects30: prospects,
-    newCustomers30: customers,
+    newCustomers30: Array.isArray(customers) ? (customers[0]?.n ?? 0) : 0,
     estimateValueOutstanding: Number(estimates._sum.grandTotal ?? 0),
     estimateCount: estimates._count._all,
   };
@@ -45,6 +60,7 @@ export async function getLeadSources(
   companyId: number,
   daysBack = 90,
 ): Promise<LeadSourceRow[]> {
+  // Use smModifiedAt as proxy for "new" since smCreatedAt is null on accounts.
   const rows = await prisma.$queryRaw<
     Array<{ source: string | null; count: bigint; revenue: number | null }>
   >`
@@ -58,7 +74,7 @@ export async function getLeadSources(
       AND o."smAccountId" = a."smId"
       AND o."orderType" = 'Invoice'
     WHERE a."companyId" = ${companyId}
-      AND a."smCreatedAt" > now() - (${daysBack}::int * interval '1 day')
+      AND a."smModifiedAt" > now() - (${daysBack}::int * interval '1 day')
     GROUP BY source
     ORDER BY count DESC
     LIMIT 12
