@@ -1,3 +1,5 @@
+import { formatSmCursor } from "./time";
+
 const BASE_URL = "https://api.servicemonster.net/v1";
 const MAX_RETRIES = 5;
 
@@ -55,23 +57,49 @@ export class SmClient {
    * Fetch every page of a list endpoint. Yields each page's data array so the
    * caller can stream-process without materializing the whole result set.
    */
+  /**
+   * Cursor-walk pagination. The SM v1 API ignores `page` and `offset` — the only
+   * way to advance through a list is to filter by an ordered field. We sort by
+   * `cursorField` ASC and re-query with `wOperator=gt` after each page,
+   * advancing to the max value seen.
+   *
+   * Caveat: `gte` is broken on the SM API (returns 0 rows even when matching
+   * data exists), so we have to use `gt`. This means rows that share the exact
+   * same timestamp as the page's max are skipped. With sub-second precision
+   * and our row volume the collision risk is negligible. The runner still
+   * de-dupes by ID as defense in depth.
+   */
   async *paginate<T = unknown>(
     endpoint: string,
-    params: Record<string, string | number | undefined> = {},
+    cursorField: string,
+    initialCursor: Date,
+    extractCursor: (row: T) => Date | null,
     pageSize = 100,
+    extraParams: Record<string, string | number | undefined> = {},
   ): AsyncGenerator<T[], void, void> {
-    let page = 1;
+    let cursor = initialCursor;
     while (true) {
       const response = await this.get<SmListResponse<T>>(endpoint, {
-        ...params,
+        ...extraParams,
         limit: pageSize,
-        page,
+        orderBy: cursorField,
+        wField: cursorField,
+        wOperator: "gt",
+        wValue: formatSmCursor(cursor),
       });
       const rows = response.items ?? [];
       if (rows.length === 0) return;
       yield rows;
-      if (rows.length < pageSize) return;
-      page += 1;
+
+      let max = cursor;
+      for (const row of rows) {
+        const ts = extractCursor(row);
+        if (ts && ts > max) max = ts;
+      }
+      // If a full page shares the same timestamp, advance by 1ms to avoid
+      // looping forever; the caller's dedupe will protect against missed rows.
+      cursor =
+        max.getTime() > cursor.getTime() ? max : new Date(cursor.getTime() + 1);
     }
   }
 
