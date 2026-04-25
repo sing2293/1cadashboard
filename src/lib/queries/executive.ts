@@ -70,6 +70,8 @@ export async function getKpis(companyId: number, range: DateRange): Promise<Kpis
       WHERE "companyId" = ${companyId}
         AND "orderType" = 'Invoice'
         AND COALESCE("amountPaid", 0) < "grandTotal"
+        AND "completedAt" >= ${range.from}
+        AND "completedAt" < ${range.to}
     `,
   ]);
 

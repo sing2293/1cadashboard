@@ -27,7 +27,7 @@ export default async function OperationsPage({
 
   const range = parseRange(sp.range);
   const [kpis, techs, daily] = await Promise.all([
-    getOpsKpis(company.id),
+    getOpsKpis(company.id, range),
     getTechUtilization(company.id, range.days),
     getDailyAppointments(company.id, range.days),
   ]);
@@ -37,25 +37,25 @@ export default async function OperationsPage({
       <div className="mx-auto max-w-7xl">
         <PageHeader
           title={`${company.name} · Operations`}
-          subtitle={`This week · tech utilization & daily appointments over ${range.label.toLowerCase()}`}
+          subtitle={`Appointments + tech utilization · ${range.label.toLowerCase()}`}
         />
 
         <section className="mt-8 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
           <KpiCard
-            label="Scheduled this week"
-            value={fmtInt(kpis.scheduledThisWeek)}
+            label="Scheduled"
+            value={fmtInt(kpis.scheduled)}
             tone="indigo"
             delay={0}
           />
           <KpiCard
-            label="Completed this week"
-            value={fmtInt(kpis.completedThisWeek)}
+            label="Completed"
+            value={fmtInt(kpis.completed)}
             tone="emerald"
             delay={60}
           />
           <KpiCard
-            label={`Cancelled (${range.days}d)`}
-            value={fmtInt(kpis.cancelledLast30)}
+            label="Cancelled"
+            value={fmtInt(kpis.cancelled)}
             hint={`${fmtPct(kpis.cancellationRate)} of scheduled`}
             tone="rose"
             delay={120}

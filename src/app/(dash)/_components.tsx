@@ -341,10 +341,10 @@ export function DonutChart({
   const fill = (tone: Tone) => TONE[tone].bar;
 
   return (
-    <div className="flex flex-col md:flex-row items-center gap-8">
+    <div className="flex flex-col items-center gap-5">
       <svg
         viewBox="0 0 320 320"
-        className="w-full max-w-xs"
+        className="w-full max-w-[240px]"
         role="img"
         aria-label={ariaLabel}
       >
@@ -369,39 +369,39 @@ export function DonutChart({
         })}
         <text
           x={cx}
-          y={cy - 6}
+          y={cy - 4}
           textAnchor="middle"
-          className="fill-zinc-500 dark:fill-zinc-400 text-[11px] uppercase tracking-wider"
+          className="fill-[var(--text-muted)] text-[12px] uppercase tracking-wider"
         >
           {centerLabel}
         </text>
         <text
           x={cx}
-          y={cy + 18}
+          y={cy + 24}
           textAnchor="middle"
-          className="fill-zinc-900 dark:fill-zinc-50 text-xl font-semibold tabular-nums"
+          className="fill-[var(--text)] text-2xl font-semibold tabular-nums"
         >
           {centerValue}
         </text>
       </svg>
-      <ul className="flex-1 w-full space-y-2.5">
+      <ul className="w-full space-y-1.5">
         {arcs.map((a) => (
           <li key={a.label}>
             <a
               href={a.href ?? "#"}
-              className="group flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/40 transition-colors"
+              className="group flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-white/5 transition-colors"
             >
               <span
                 className="size-3 rounded-sm shrink-0"
                 style={{ backgroundColor: fill(a.tone) }}
               />
-              <span className="flex-1 text-sm text-zinc-900 dark:text-zinc-100 truncate">
+              <span className="flex-1 text-sm text-[var(--text)] truncate">
                 {a.label}
               </span>
-              <span className="text-sm font-medium tabular-nums text-zinc-700 dark:text-zinc-300">
+              <span className="text-sm font-medium tabular-nums text-[var(--text)]">
                 {fmtMoney(a.value)}
               </span>
-              <span className="text-xs text-zinc-500 w-12 text-right tabular-nums">
+              <span className="text-xs text-[var(--text-muted)] w-12 text-right tabular-nums">
                 {(a.share * 100).toFixed(1)}%
               </span>
             </a>

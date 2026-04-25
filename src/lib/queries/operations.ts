@@ -1,9 +1,10 @@
 import { prisma } from "@/lib/db";
+import type { ResolvedRange } from "./range";
 
 export type OpsKpis = {
-  scheduledThisWeek: number;
-  completedThisWeek: number;
-  cancelledLast30: number;
+  scheduled: number;
+  completed: number;
+  cancelled: number;
   cancellationRate: number;
   avgActualHours: number | null;
   avgScheduledHours: number | null;
@@ -21,61 +22,30 @@ export type TechUtilization = {
 
 export type DailyAppointments = { day: string; scheduled: number; completed: number };
 
-function startOfWeek(d: Date): Date {
-  const out = new Date(
-    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()),
-  );
-  const day = out.getUTCDay();
-  out.setUTCDate(out.getUTCDate() - day);
-  return out;
-}
+export async function getOpsKpis(
+  companyId: number,
+  range: ResolvedRange,
+): Promise<OpsKpis> {
+  const where = {
+    companyId,
+    scheduledStart: { gte: range.from, lt: range.to },
+  };
 
-export async function getOpsKpis(companyId: number): Promise<OpsKpis> {
-  const now = new Date();
-  const weekStart = startOfWeek(now);
-  const weekEnd = new Date(weekStart);
-  weekEnd.setUTCDate(weekStart.getUTCDate() + 7);
-  const thirtyDaysAgo = new Date(now);
-  thirtyDaysAgo.setUTCDate(thirtyDaysAgo.getUTCDate() - 30);
-
-  const [scheduled, completed, cancelled, total30, avgs] = await Promise.all([
-    prisma.appointment.count({
-      where: {
-        companyId,
-        scheduledStart: { gte: weekStart, lt: weekEnd },
-      },
-    }),
-    prisma.appointment.count({
-      where: {
-        companyId,
-        scheduledStart: { gte: weekStart, lt: weekEnd },
-        status: "Complete",
-      },
-    }),
-    prisma.appointment.count({
-      where: {
-        companyId,
-        scheduledStart: { gte: thirtyDaysAgo },
-        status: "Cancelled",
-      },
-    }),
-    prisma.appointment.count({
-      where: { companyId, scheduledStart: { gte: thirtyDaysAgo } },
-    }),
+  const [scheduled, completed, cancelled, avgs] = await Promise.all([
+    prisma.appointment.count({ where }),
+    prisma.appointment.count({ where: { ...where, status: "Complete" } }),
+    prisma.appointment.count({ where: { ...where, status: "Cancelled" } }),
     prisma.appointment.aggregate({
-      where: {
-        companyId,
-        scheduledStart: { gte: thirtyDaysAgo },
-      },
+      where,
       _avg: { actualHours: true, estimatedHours: true },
     }),
   ]);
 
   return {
-    scheduledThisWeek: scheduled,
-    completedThisWeek: completed,
-    cancelledLast30: cancelled,
-    cancellationRate: total30 > 0 ? cancelled / total30 : 0,
+    scheduled,
+    completed,
+    cancelled,
+    cancellationRate: scheduled > 0 ? cancelled / scheduled : 0,
     avgActualHours: avgs._avg.actualHours
       ? Number(avgs._avg.actualHours)
       : null,

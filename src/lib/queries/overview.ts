@@ -46,6 +46,8 @@ export async function getCompaniesOverview(
           WHERE "companyId" = ${c.id}
             AND "orderType" = 'Invoice'
             AND COALESCE("amountPaid", 0) < "grandTotal"
+            AND "completedAt" >= ${range.from}
+            AND "completedAt" < ${range.to}
         `,
         prisma.$queryRaw<Array<{ n: number }>>`
           SELECT COUNT(*)::int AS n FROM (

@@ -22,7 +22,7 @@ export default async function SalesPage({
 
   const range = parseRange(sp.range);
   const [kpis, sources] = await Promise.all([
-    getSalesKpis(company.id),
+    getSalesKpis(company.id, range),
     getLeadSources(company.id, range.days),
   ]);
 
@@ -31,30 +31,30 @@ export default async function SalesPage({
       <div className="mx-auto max-w-7xl">
         <PageHeader
           title={`${company.name} · Sales`}
-          subtitle={`Pipeline + new accounts over ${range.label.toLowerCase()}`}
+          subtitle={`Pipeline + new accounts · ${range.label.toLowerCase()}`}
         />
 
         <section className="mt-8 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
           <KpiCard
-            label="New leads (30d)"
-            value={fmtInt(kpis.newLeads30)}
+            label="New leads"
+            value={fmtInt(kpis.newLeads)}
             tone="violet"
             delay={0}
           />
           <KpiCard
-            label="New prospects (30d)"
-            value={fmtInt(kpis.newProspects30)}
+            label="New prospects"
+            value={fmtInt(kpis.newProspects)}
             tone="indigo"
             delay={60}
           />
           <KpiCard
-            label="New customers (30d)"
-            value={fmtInt(kpis.newCustomers30)}
+            label="New customers"
+            value={fmtInt(kpis.newCustomers)}
             tone="emerald"
             delay={120}
           />
           <KpiCard
-            label="Open estimates"
+            label="Estimates issued"
             value={fmtInt(kpis.estimateCount)}
             tone="sky"
             delay={180}
