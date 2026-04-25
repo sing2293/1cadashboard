@@ -1,13 +1,23 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { runIncrementalSync } from "@/lib/sync/runner";
+import { runIncrementalSync, type ResourceSyncer } from "@/lib/sync/runner";
 import { accountsSyncer } from "@/lib/sync/resources/accounts";
+import { employeesSyncer } from "@/lib/sync/resources/employees";
+import { leadsSyncer } from "@/lib/sync/resources/leads";
+import { ordersSyncer } from "@/lib/sync/resources/orders";
+import { appointmentsSyncer } from "@/lib/sync/resources/appointments";
+import { activitiesSyncer } from "@/lib/sync/resources/activities";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 const SYNCERS = {
   accounts: accountsSyncer,
+  employees: employeesSyncer,
+  leads: leadsSyncer,
+  orders: ordersSyncer,
+  appointments: appointmentsSyncer,
+  activities: activitiesSyncer,
 } as const;
 
 type SyncerName = keyof typeof SYNCERS;
@@ -44,9 +54,12 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await runIncrementalSync(prisma, company, syncer, {
-      initialCursorIfEmpty: monthsAgo(backfillMonths),
-    });
+    const result = await runIncrementalSync(
+      prisma,
+      company,
+      syncer as ResourceSyncer<unknown>,
+      { initialCursorIfEmpty: monthsAgo(backfillMonths) },
+    );
     return NextResponse.json({ ok: true, slug, resource, ...result });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

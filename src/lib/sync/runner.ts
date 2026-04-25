@@ -11,21 +11,25 @@ export type SyncRunResult = {
 
 export interface ResourceSyncer<TRaw> {
   resource: string;
-  endpoint: string;
-  /** API field name that carries the row's last-modified timestamp, e.g. "timeStamp". */
-  cursorField: string;
-  /** Extract that timestamp from a raw row so we can advance the cursor. */
+  /** Iterate pages of raw rows. Owns its own pagination strategy. */
+  fetchPages: (sm: SmClient, fromCursor: Date) => AsyncGenerator<TRaw[], void, void>;
+  /** Extract a Date for SyncState cursor advancement; null if this resource has no time field. */
   extractCursor: (raw: TRaw) => Date | null;
   /** Stable per-row identifier (the SM record ID), used for cross-page de-dup. */
   extractId: (raw: TRaw) => string;
   /** Persist a page of raw rows. Returns number of rows upserted. */
   persist: (rows: TRaw[], companyId: number, prisma: PrismaClient) => Promise<number>;
+  /**
+   * If true, every run ignores the stored SyncState cursor and pulls everything
+   * from `initialCursorIfEmpty`. Use for tiny resources that lack a modified
+   * timestamp (e.g. employees).
+   */
+  fullSync?: boolean;
 }
 
 export type SyncOptions = {
   /** Cursor to use when SyncState has no row yet (first run for this resource+company). */
   initialCursorIfEmpty: Date;
-  pageSize?: number;
 };
 
 /**
@@ -38,13 +42,14 @@ export async function runIncrementalSync<TRaw>(
   syncer: ResourceSyncer<TRaw>,
   options: SyncOptions,
 ): Promise<SyncRunResult> {
-  const pageSize = options.pageSize ?? 100;
   const startedAt = Date.now();
 
   const state = await prisma.syncState.findUnique({
     where: { companyId_resource: { companyId: company.id, resource: syncer.resource } },
   });
-  const cursor = state?.lastCursor ?? options.initialCursorIfEmpty;
+  const cursor = syncer.fullSync
+    ? options.initialCursorIfEmpty
+    : (state?.lastCursor ?? options.initialCursorIfEmpty);
 
   const run = await prisma.syncRun.create({
     data: {
@@ -60,13 +65,7 @@ export async function runIncrementalSync<TRaw>(
 
   try {
     const sm = SmClient.fromEnv(company.slug);
-    const iterator = sm.paginate<TRaw>(
-      syncer.endpoint,
-      syncer.cursorField,
-      cursor,
-      syncer.extractCursor,
-      pageSize,
-    );
+    const iterator = syncer.fetchPages(sm, cursor);
 
     const seen = new Set<string>();
     let pageNum = 0;

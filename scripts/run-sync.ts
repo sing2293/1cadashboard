@@ -1,11 +1,21 @@
 import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { runIncrementalSync } from "../src/lib/sync/runner";
+import { runIncrementalSync, type ResourceSyncer } from "../src/lib/sync/runner";
 import { accountsSyncer } from "../src/lib/sync/resources/accounts";
+import { employeesSyncer } from "../src/lib/sync/resources/employees";
+import { leadsSyncer } from "../src/lib/sync/resources/leads";
+import { ordersSyncer } from "../src/lib/sync/resources/orders";
+import { appointmentsSyncer } from "../src/lib/sync/resources/appointments";
+import { activitiesSyncer } from "../src/lib/sync/resources/activities";
 
 const SYNCERS = {
   accounts: accountsSyncer,
+  employees: employeesSyncer,
+  leads: leadsSyncer,
+  orders: ordersSyncer,
+  appointments: appointmentsSyncer,
+  activities: activitiesSyncer,
 } as const;
 
 function parseArgs(): { slug: string; resource: keyof typeof SYNCERS; backfillMonths: number } {
@@ -43,9 +53,12 @@ async function main() {
     `[sync] ${resource} for ${slug} (companyId=${company.id}), backfill=${backfillMonths} months`,
   );
 
-  const result = await runIncrementalSync(prisma, company, SYNCERS[resource], {
-    initialCursorIfEmpty: monthsAgo(backfillMonths),
-  });
+  const result = await runIncrementalSync(
+    prisma,
+    company,
+    SYNCERS[resource] as ResourceSyncer<unknown>,
+    { initialCursorIfEmpty: monthsAgo(backfillMonths) },
+  );
 
   console.log("\n[sync] DONE");
   console.log(`  syncRunId:       ${result.syncRunId}`);

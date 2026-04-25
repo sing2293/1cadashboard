@@ -40,7 +40,7 @@ yarn-error.log*
 .claude/settings.local.json
 
 # Sync run logs
-sync.log
+sync*.log
 
 # typescript
 *.tsbuildinfo

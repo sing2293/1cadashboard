@@ -8,8 +8,16 @@ const companies = [
     slug: "1cleanair",
     smCompanyId: "fb667c13-75a3-11e9-8c1a-fec578518208",
   },
-  { name: "Home Depot", slug: "homedepot", smCompanyId: "" },
-  { name: "Enviro Duct", slug: "enviroduct", smCompanyId: "" },
+  {
+    name: "Home Depot",
+    slug: "homedepot",
+    smCompanyId: "4c5c2022-4207-11e5-87c2-93a25f817b96",
+  },
+  {
+    name: "Enviro Duct",
+    slug: "enviroduct",
+    smCompanyId: "c770b328-26e8-11ec-8d04-c04d03c0d409",
+  },
 ];
 
 async function main() {
