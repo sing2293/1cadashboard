@@ -350,7 +350,8 @@ export default async function ExecutivePage({
           subtitle={`By invoiced revenue · ${range.label.toLowerCase()}`}
           padded={false}
         >
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[480px]">
             <thead className="text-left text-[11px] uppercase tracking-wider text-[var(--text-muted)] bg-white/[0.02]">
               <tr>
                 <th className="px-6 py-2.5 font-medium">Account</th>
@@ -385,6 +386,7 @@ export default async function ExecutivePage({
               )}
             </tbody>
           </table>
+          </div>
         </Section>
       </div>
     </main>

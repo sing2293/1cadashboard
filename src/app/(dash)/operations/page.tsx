@@ -103,7 +103,8 @@ export default async function OperationsPage({
           subtitle={`Top performers · ${range.label.toLowerCase()}`}
           padded={false}
         >
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[640px]">
             <thead className="text-left text-[11px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400 bg-zinc-50/60 dark:bg-zinc-900/40">
               <tr>
                 <th className="px-6 py-2.5 font-medium">Technician</th>
@@ -147,6 +148,7 @@ export default async function OperationsPage({
               )}
             </tbody>
           </table>
+          </div>
         </Section>
       </div>
     </main>

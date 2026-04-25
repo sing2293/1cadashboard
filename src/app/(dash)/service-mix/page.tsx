@@ -123,7 +123,8 @@ export default async function ServiceMixPage({
 
         <Section title="Category breakdown" padded={false}>
           {categories.length === 0 ? null : (
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[520px]">
               <thead className="text-left text-[11px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400 bg-zinc-50/60 dark:bg-zinc-900/40">
                 <tr>
                   <th className="px-6 py-2.5 font-medium">Category</th>
@@ -187,6 +188,7 @@ export default async function ServiceMixPage({
                 })}
               </tbody>
             </table>
+            </div>
           )}
         </Section>
 
@@ -196,7 +198,8 @@ export default async function ServiceMixPage({
               No items yet.
             </div>
           ) : (
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[640px]">
               <thead className="text-left text-[11px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400 bg-zinc-50/60 dark:bg-zinc-900/40">
                 <tr>
                   <th className="px-6 py-2.5 font-medium">Item</th>
@@ -227,6 +230,7 @@ export default async function ServiceMixPage({
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </Section>
 

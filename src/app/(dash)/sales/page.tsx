@@ -72,7 +72,8 @@ export default async function SalesPage({
           subtitle={range.label}
           padded={false}
         >
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[520px]">
             <thead className="text-left text-[11px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400 bg-zinc-50/60 dark:bg-zinc-900/40">
               <tr>
                 <th className="px-6 py-2.5 font-medium">Source</th>
@@ -109,6 +110,7 @@ export default async function SalesPage({
               )}
             </tbody>
           </table>
+          </div>
         </Section>
       </div>
     </main>

@@ -28,7 +28,8 @@ export default async function SyncStatusPage() {
 
         {Array.from(grouped.entries()).map(([slug, rows]) => (
           <Section key={slug} title={`${rows[0].companyName} (${slug})`} padded={false}>
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[720px]">
               <thead className="text-left text-[11px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400 bg-zinc-50/60 dark:bg-zinc-900/40">
                 <tr>
                   <th className="px-6 py-2.5 font-medium">Resource</th>
@@ -63,11 +64,13 @@ export default async function SyncStatusPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           </Section>
         ))}
 
         <Section title="Recent runs" subtitle="Last 50" padded={false}>
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[820px]">
             <thead className="text-left text-[11px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400 bg-zinc-50/60 dark:bg-zinc-900/40">
               <tr>
                 <th className="px-6 py-2.5 font-medium">#</th>
@@ -106,6 +109,7 @@ export default async function SyncStatusPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </Section>
       </div>
     </main>
