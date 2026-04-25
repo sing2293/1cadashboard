@@ -12,7 +12,10 @@
     "db:studio": "prisma studio",
     "db:generate": "prisma generate",
     "db:seed": "tsx prisma/seed.ts",
-    "sync": "tsx scripts/run-sync.ts"
+    "sync": "tsx scripts/run-sync.ts",
+    "sync:items": "tsx scripts/run-order-items.ts",
+    "db:seed-services": "tsx prisma/seed-services.ts",
+    "normalize": "tsx scripts/run-normalize.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",

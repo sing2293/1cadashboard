@@ -41,6 +41,9 @@ yarn-error.log*
 
 # Sync run logs
 sync*.log
+ed-sync.log
+hd-sync.log
+items-*.log
 
 # typescript
 *.tsbuildinfo
