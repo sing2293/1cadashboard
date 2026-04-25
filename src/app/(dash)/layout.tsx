@@ -1,14 +1,8 @@
 import Link from "next/link";
 import { listCompanies } from "@/lib/queries/company";
 import { CompanySelect } from "./_company-select";
-
-const TABS = [
-  { href: "/", label: "Executive" },
-  { href: "/operations", label: "Operations" },
-  { href: "/sales", label: "Sales" },
-  { href: "/service-mix", label: "Service Mix" },
-  { href: "/admin/sync", label: "Sync status" },
-];
+import { DateRangeSelect } from "./_date-range";
+import { NavTabs } from "./_nav-tabs";
 
 export default async function DashLayout({
   children,
@@ -19,27 +13,23 @@ export default async function DashLayout({
   const fallback = companies[0]?.slug ?? "1cleanair";
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
-        <div className="mx-auto max-w-6xl px-6 py-3 flex items-center justify-between gap-4">
+    <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-white dark:from-zinc-950 dark:to-zinc-900">
+      <header className="sticky top-0 z-10 backdrop-blur supports-[backdrop-filter]:bg-white/75 dark:supports-[backdrop-filter]:bg-zinc-900/75 border-b border-zinc-200 dark:border-zinc-800">
+        <div className="mx-auto max-w-7xl px-6 py-3 flex items-center justify-between gap-6">
           <Link
             href="/"
-            className="text-sm font-semibold text-zinc-900 dark:text-zinc-50 whitespace-nowrap"
+            className="flex items-center gap-2 text-sm font-semibold text-zinc-900 dark:text-zinc-50 whitespace-nowrap"
           >
-            ServiceMonster Dashboard
+            <span className="inline-flex size-7 items-center justify-center rounded-md bg-gradient-to-br from-indigo-500 to-violet-600 text-white text-xs font-bold shadow-sm">
+              SM
+            </span>
+            <span className="hidden sm:inline">ServiceMonster Dashboard</span>
           </Link>
-          <nav className="flex items-center gap-1 text-sm flex-1 ml-6">
-            {TABS.map((t) => (
-              <Link
-                key={t.href}
-                href={t.href}
-                className="px-3 py-1.5 rounded text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-50"
-              >
-                {t.label}
-              </Link>
-            ))}
-          </nav>
-          <CompanySelect options={companies} defaultSlug={fallback} />
+          <NavTabs />
+          <div className="flex items-center gap-2">
+            <DateRangeSelect defaultValue="30d" />
+            <CompanySelect options={companies} defaultSlug={fallback} />
+          </div>
         </div>
       </header>
       {children}
