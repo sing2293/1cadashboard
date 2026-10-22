@@ -1,8 +1,10 @@
 "use client";
 
+import { UserButton, useUser } from "@clerk/nextjs";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import { isHubAdmin, type HubAccess } from "@/lib/hub-access";
 
 const ITEMS = [
   {
@@ -50,6 +52,7 @@ const ITEMS = [
   {
     href: "/admin/sync",
     label: "Sync",
+    adminOnly: true,
     icon: (
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <polyline points="23 4 23 10 17 10" />
@@ -65,6 +68,10 @@ export function Sidebar() {
   const params = useSearchParams();
   const qs = params.toString() ? `?${params.toString()}` : "";
   const [open, setOpen] = useState(false);
+  // proxy.ts bounces non-admins off /admin, so don't show them the link
+  const { user } = useUser();
+  const admin = isHubAdmin(user?.publicMetadata as HubAccess | undefined);
+  const items = ITEMS.filter((item) => admin || !item.adminOnly);
 
   // Auto-close drawer when navigating
   useEffect(() => {
@@ -141,7 +148,7 @@ export function Sidebar() {
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-          {ITEMS.map((item) => {
+          {items.map((item) => {
             const active =
               item.href === "/"
                 ? pathname === "/"
@@ -173,6 +180,10 @@ export function Sidebar() {
         <div className="px-5 py-4 border-t border-[var(--border)] text-[11px] text-[var(--text-muted)]">
           <div>1CleanAir · Home Depot · Enviro Duct</div>
           <div className="mt-1">Synced via SM API</div>
+        </div>
+
+        <div className="px-5 py-3 border-t border-[var(--border)]">
+          <UserButton showName />
         </div>
       </aside>
     </>

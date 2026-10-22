@@ -1,0 +1,28 @@
+/**
+ * Login and access come from the 1CleanAir Hub (www.1cleanair.info): one Clerk
+ * login shared across every *.1cleanair.info app, with per-app grants in the
+ * user's `publicMetadata` (managed on the hub's /admin page):
+ *   { "role": "admin" }              → every app (+ this app's /admin pages)
+ *   { "apps": "*" }                  → every app
+ *   { "apps": ["sales", "calls"] }   → just those apps
+ *   {}                               → nothing yet
+ */
+export const APP_ID = "sales";
+
+export const HUB_URL =
+  process.env.NEXT_PUBLIC_HUB_URL ?? "https://www.1cleanair.info";
+
+export interface HubAccess {
+  role?: string;
+  apps?: string[] | "*";
+}
+
+export function isHubAdmin(meta: HubAccess | null | undefined): boolean {
+  return meta?.role === "admin";
+}
+
+export function canOpenApp(meta: HubAccess | null | undefined): boolean {
+  if (!meta) return false;
+  if (isHubAdmin(meta) || meta.apps === "*") return true;
+  return Array.isArray(meta.apps) && meta.apps.includes(APP_ID);
+}
