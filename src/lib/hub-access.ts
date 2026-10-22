@@ -6,6 +6,8 @@
  *   { "apps": "*" }                  → every app
  *   { "apps": ["sales", "calls"] }   → just those apps
  *   {}                               → nothing yet
+ * Roles on the hub can also hand out `perms`, e.g. "sales:sync" for the Sync
+ * page without making someone a hub administrator.
  */
 export const APP_ID = "sales";
 
@@ -15,10 +17,16 @@ export const HUB_URL =
 export interface HubAccess {
   role?: string;
   apps?: string[] | "*";
+  perms?: string[];
 }
 
 export function isHubAdmin(meta: HubAccess | null | undefined): boolean {
   return meta?.role === "admin";
+}
+
+/** Run data syncs (/admin/sync and /api/admin/*). */
+export function canSync(meta: HubAccess | null | undefined): boolean {
+  return isHubAdmin(meta) || !!meta?.perms?.includes("sales:sync");
 }
 
 export function canOpenApp(meta: HubAccess | null | undefined): boolean {

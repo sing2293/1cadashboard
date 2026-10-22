@@ -4,7 +4,7 @@ import {
   createRouteMatcher,
 } from "@clerk/nextjs/server";
 import { NextResponse, type NextRequest } from "next/server";
-import { canOpenApp, isHubAdmin, type HubAccess } from "@/lib/hub-access";
+import { canOpenApp, canSync, type HubAccess } from "@/lib/hub-access";
 
 // Vercel Cron checks CRON_SECRET inside the route itself
 const isCronRoute = createRouteMatcher(["/api/cron(.*)"]);
@@ -33,7 +33,7 @@ export default clerkMiddleware(async (auth, req) => {
     const res = forbidden(req, new URL("/no-access", req.url));
     return res instanceof URL ? NextResponse.rewrite(res) : res;
   }
-  if (isAdminRoute(req) && !isHubAdmin(meta)) {
+  if (isAdminRoute(req) && !canSync(meta)) {
     const res = forbidden(req, new URL("/", req.url));
     return res instanceof URL ? NextResponse.redirect(res) : res;
   }

@@ -4,7 +4,7 @@ import { UserButton, useUser } from "@clerk/nextjs";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { isHubAdmin, type HubAccess } from "@/lib/hub-access";
+import { canSync, type HubAccess } from "@/lib/hub-access";
 
 const ITEMS = [
   {
@@ -68,10 +68,10 @@ export function Sidebar() {
   const params = useSearchParams();
   const qs = params.toString() ? `?${params.toString()}` : "";
   const [open, setOpen] = useState(false);
-  // proxy.ts bounces non-admins off /admin, so don't show them the link
+  // proxy.ts bounces anyone without sync access off /admin, so don't show them the link
   const { user } = useUser();
-  const admin = isHubAdmin(user?.publicMetadata as HubAccess | undefined);
-  const items = ITEMS.filter((item) => admin || !item.adminOnly);
+  const syncAllowed = canSync(user?.publicMetadata as HubAccess | undefined);
+  const items = ITEMS.filter((item) => syncAllowed || !item.adminOnly);
 
   // Auto-close drawer when navigating
   useEffect(() => {
