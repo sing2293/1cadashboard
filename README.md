@@ -5,7 +5,7 @@ Internal analytics dashboard that unifies data from three ServiceMonster account
 ## Stack
 
 - Next.js 16 (App Router, RSC) + React 19 + Tailwind v4
-- UI: the shared 1CA Glass kit (`@1ca/ui`, [`packages/ui`](../../packages/ui/README.md)): the app shell, page primitives, charts and GlassyUI controls, in light and dark
+- UI: 1CA Glass, the shared 1CleanAir UI kit, vendored in [`kit/`](kit/README.md) and imported as `@1ca/ui/...`: the app shell, page primitives, charts and GlassyUI controls, in light and dark (see "The UI kit (`kit/`)")
 - Sign-in: Clerk, through the 1CleanAir Hub (see "Sign-in and access")
 - Prisma 7 with `@prisma/adapter-pg`
 - Postgres via [Neon](https://neon.tech)
@@ -47,10 +47,23 @@ Sign-in belongs to the **1CleanAir Hub** (www.1cleanair.info). Sales uses the hu
 
 Production Clerk keys only work on `*.1cleanair.info`. Locally, use the hub app's development instance (`clerk env pull` writes its keys to `.env.local`) and leave the sign-in URLs unset to use Clerk's development Account Portal.
 
+## The UI kit (`kit/`)
+
+`kit/` is a vendored copy of 1CA Glass, the UI kit every 1CleanAir app shares: the GlassyUI components, the app shell, the theme, the page primitives and the charts. **Do not edit it here.** The master copy is `kit/` in the hub repo (`dashboard_1cleanair`): the kit is changed there only, and the hub's `scripts/sync-kit.mjs` copies it into this repo, overwriting this folder. The synced `kit/` is then committed here like any other change. `kit/VERSION` records the hub commit and content hash this copy came from.
+
+- Code imports the kit as `@1ca/ui/...` (for example `@1ca/ui/shell`, `@1ca/ui/components/card`); the `paths` in `tsconfig.json` map those imports to `./kit/...`.
+- `src/app/globals.css` imports `../../kit/styles/kit.css`, which also registers `kit/` as a Tailwind source.
+- ESLint skips `kit/**`.
+- The kit's runtime dependencies (the Radix UI packages, cmdk, clsx, lucide-react, tailwind-merge) are in this repo's `package.json`.
+
+The kit's own guide, with every import and component, is [`kit/README.md`](kit/README.md).
+
 ## Local setup
 
+This repo uses pnpm 10 (`packageManager` in `package.json`).
+
 ```bash
-pnpm install              # once, from the repo root (pnpm workspace)
+pnpm install              # also runs prisma generate (postinstall)
 cp .env.example .env
 # Fill in DATABASE_URL (Neon pooled URL) and SM_USER_*/SM_PASS_* in .env,
 # and the Clerk keys (see "Sign-in and access")
@@ -60,7 +73,7 @@ pnpm db:seed-services     # seed the canonical service catalog
 pnpm dev
 ```
 
-Open http://localhost:3001.
+Open http://localhost:3000.
 
 ## Initial backfill
 
@@ -80,7 +93,7 @@ Subsequent runs are incremental (cursor-tracked); the Vercel cron handles them.
 
 ## Scripts
 
-- `pnpm dev`: generate the Prisma client, then the Next.js dev server on port 3001
+- `pnpm dev`: generate the Prisma client, then the Next.js dev server on port 3000
 - `pnpm build`: generate the Prisma client, then a production build
 - `pnpm lint`: ESLint
 - `pnpm sync --slug=<slug> --resource=<r>`: incremental sync
@@ -93,6 +106,7 @@ Subsequent runs are incremental (cursor-tracked); the Vercel cron handles them.
 ## Project layout
 
 ```
+kit/                        # 1CA Glass UI kit: vendored copy, edited only in the hub repo (see kit/README.md)
 prisma/
   schema.prisma             # data model
   seed.ts                   # company metadata seed
