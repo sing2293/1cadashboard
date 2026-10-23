@@ -19,7 +19,19 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@1ca/ui/glassyui/lib/*": ["./kit/components/glassyui/lib/*"],
+      "@1ca/ui/glassyui/styles/*": ["./kit/components/glassyui/styles/*"],
+      "@1ca/ui/glassyui/*": ["./kit/components/glassyui/*"],
+      "@1ca/ui/shell": ["./kit/shell/index.ts"],
+      "@1ca/ui/theme": ["./kit/theme/index.ts"],
+      "@1ca/ui/theme/server": ["./kit/theme/server.ts"],
+      "@1ca/ui/providers": ["./kit/providers/index.ts"],
+      "@1ca/ui/clerk": ["./kit/clerk/index.ts"],
+      "@1ca/ui/config/*": ["./kit/config/*"],
+      "@1ca/ui/components/*": ["./kit/components/*"],
+      "@1ca/ui/lib/*": ["./kit/lib/*"],
+      "@1ca/ui/styles/*": ["./kit/styles/*"]
     }
   },
   "include": [

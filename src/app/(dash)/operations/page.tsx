@@ -1,3 +1,34 @@
+import {
+  CalendarCheck,
+  CircleCheck,
+  CircleX,
+  Clock,
+  Timer,
+  Users,
+  Wrench,
+} from "lucide-react";
+import type { Metadata } from "next";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@1ca/ui/components/card";
+import { BarChart, ChartLegend, MiniBar } from "@1ca/ui/components/charts";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableEmpty,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@1ca/ui/components/data-table";
+import { Page } from "@1ca/ui/components/page";
+import { Section } from "@1ca/ui/components/section";
+import { StatCard } from "@1ca/ui/components/stat-card";
+import { formatDate } from "@1ca/ui/lib/format";
 import { resolveCompany } from "@/lib/queries/company";
 import { parseRange } from "@/lib/queries/range";
 import {
@@ -5,16 +36,12 @@ import {
   getOpsKpis,
   getTechUtilization,
 } from "@/lib/queries/operations";
-import {
-  fmtInt,
-  fmtPct,
-  KpiCard,
-  Section,
-  BarChart,
-  PageHeader,
-} from "../_components";
+import { enterDelay, fmtInt, fmtPct } from "../_components";
+import { NoCompanyPage, ReportHeader } from "../_report-header";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = { title: "Operations" };
 
 export default async function OperationsPage({
   searchParams,
@@ -23,7 +50,7 @@ export default async function OperationsPage({
 }) {
   const sp = await searchParams;
   const company = await resolveCompany(sp.company);
-  if (!company) return <main className="p-10">No company seeded.</main>;
+  if (!company) return <NoCompanyPage icon={Wrench} title="Operations" />;
 
   const range = parseRange(sp.range);
   const [kpis, techs, daily] = await Promise.all([
@@ -33,124 +60,140 @@ export default async function OperationsPage({
   ]);
 
   return (
-    <main className="px-6 py-8">
-      <div className="mx-auto max-w-7xl">
-        <PageHeader
-          title={`${company.name} · Operations`}
-          subtitle={`Appointments + tech utilization · ${range.label.toLowerCase()}`}
-        />
+    <Page>
+      <ReportHeader
+        icon={Wrench}
+        eyebrow={company.name}
+        title="Operations"
+        description={`Appointments + tech utilization · ${range.label.toLowerCase()}`}
+      />
 
-        <section className="mt-8 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-          <KpiCard
+      <Section title="Overview">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          <StatCard
+            className="ca-enter"
+            style={enterDelay(0)}
             label="Scheduled"
             value={fmtInt(kpis.scheduled)}
-            tone="indigo"
-            delay={0}
+            icon={CalendarCheck}
           />
-          <KpiCard
+          <StatCard
+            className="ca-enter"
+            style={enterDelay(1)}
             label="Completed"
             value={fmtInt(kpis.completed)}
-            tone="emerald"
-            delay={60}
+            icon={CircleCheck}
           />
-          <KpiCard
+          <StatCard
+            className="ca-enter"
+            style={enterDelay(2)}
             label="Cancelled"
             value={fmtInt(kpis.cancelled)}
             hint={`${fmtPct(kpis.cancellationRate)} of scheduled`}
-            tone="rose"
-            delay={120}
+            icon={CircleX}
           />
-          <KpiCard
+          <StatCard
+            className="ca-enter"
+            style={enterDelay(3)}
             label="Avg actual hrs"
             value={
               kpis.avgActualHours !== null
                 ? kpis.avgActualHours.toFixed(2)
                 : "—"
             }
-            tone="sky"
-            delay={180}
+            icon={Timer}
           />
-          <KpiCard
+          <StatCard
+            className="ca-enter"
+            style={enterDelay(4)}
             label="Avg scheduled hrs"
             value={
               kpis.avgScheduledHours !== null
                 ? kpis.avgScheduledHours.toFixed(2)
                 : "—"
             }
-            tone="violet"
-            delay={240}
+            icon={Clock}
           />
-        </section>
+        </div>
+      </Section>
 
-        <Section
-          title="Appointments per day"
-          subtitle={range.label}
-        >
+      <Card variant="solid">
+        <CardHeader actions={<ChartLegend items={[{ label: "Scheduled", slot: 1 }]} />}>
+          <CardTitle as="h2">Appointments per day</CardTitle>
+          <CardDescription>{range.label}</CardDescription>
+        </CardHeader>
+        <CardContent>
           <BarChart
             ariaLabel="Daily appointments"
-            tone="indigo"
+            slot={1}
             format={fmtInt}
+            tableLabel="Appointments per day"
+            xLabel="Day"
             data={daily.map((d) => ({
               label: d.day.slice(5),
               value: d.scheduled,
-              tooltip: `${d.day}: ${d.scheduled} scheduled, ${d.completed} completed`,
+              tooltip: `${formatDate(d.day)}: ${fmtInt(d.scheduled)} scheduled, ${fmtInt(d.completed)} completed`,
             }))}
           />
-        </Section>
+        </CardContent>
+      </Card>
 
-        <Section
-          title="Tech utilization"
-          subtitle={`Top performers · ${range.label.toLowerCase()}`}
-          padded={false}
-        >
-          <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[640px]">
-            <thead className="text-left text-[11px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400 bg-zinc-50/60 dark:bg-zinc-900/40">
-              <tr>
-                <th className="px-6 py-2.5 font-medium">Technician</th>
-                <th className="px-6 py-2.5 font-medium text-right">Appointments</th>
-                <th className="px-6 py-2.5 font-medium text-right">Sched. hrs</th>
-                <th className="px-6 py-2.5 font-medium text-right">Actual hrs</th>
-                <th className="px-6 py-2.5 font-medium text-right">Utilization</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/60">
+      <Card variant="solid" className="overflow-hidden pb-0">
+        <CardHeader>
+          <CardTitle as="h2">Tech utilization</CardTitle>
+          <CardDescription>
+            Top performers · {range.label.toLowerCase()}
+          </CardDescription>
+        </CardHeader>
+        <CardContent flush>
+          <Table surface="none" label="Tech utilization" className="min-w-[36rem]">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Technician</TableHead>
+                <TableHead numeric>Appointments</TableHead>
+                <TableHead numeric>Sched. hrs</TableHead>
+                <TableHead numeric>Actual hrs</TableHead>
+                <TableHead numeric>Utilization</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {techs.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-6 text-zinc-500 text-center">
-                    No tech-tagged appointments in this range.
-                  </td>
-                </tr>
+                <TableEmpty
+                  colSpan={5}
+                  icon={Users}
+                  title="No tech-tagged appointments in this range."
+                />
               ) : (
                 techs.map((t) => (
-                  <tr
-                    key={t.smId}
-                    className="hover:bg-zinc-50/60 dark:hover:bg-zinc-800/40 transition-colors"
-                  >
-                    <td className="px-6 py-2.5 text-zinc-900 dark:text-zinc-100">
+                  <TableRow key={t.smId}>
+                    <TableCell className="font-medium">
                       {[t.firstName, t.lastName].filter(Boolean).join(" ") ||
                         "—"}
-                    </td>
-                    <td className="px-6 py-2.5 text-right tabular-nums">
-                      {fmtInt(t.appointments)}
-                    </td>
-                    <td className="px-6 py-2.5 text-right tabular-nums">
+                    </TableCell>
+                    <TableCell numeric>{fmtInt(t.appointments)}</TableCell>
+                    <TableCell numeric muted>
                       {t.scheduledHours.toFixed(1)}
-                    </td>
-                    <td className="px-6 py-2.5 text-right tabular-nums">
+                    </TableCell>
+                    <TableCell numeric muted>
                       {t.actualHours.toFixed(1)}
-                    </td>
-                    <td className="px-6 py-2.5 text-right font-medium tabular-nums">
-                      {t.utilization !== null ? fmtPct(t.utilization) : "—"}
-                    </td>
-                  </tr>
+                    </TableCell>
+                    <TableCell numeric className="font-medium">
+                      <span className="inline-flex items-center gap-3">
+                        {t.utilization !== null ? (
+                          <MiniBar value={t.utilization} />
+                        ) : null}
+                        <span className="w-12">
+                          {t.utilization !== null ? fmtPct(t.utilization) : "—"}
+                        </span>
+                      </span>
+                    </TableCell>
+                  </TableRow>
                 ))
               )}
-            </tbody>
-          </table>
-          </div>
-        </Section>
-      </div>
-    </main>
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </Page>
   );
 }

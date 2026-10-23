@@ -1,6 +1,15 @@
 "use client";
 
+import { Building2 } from "lucide-react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import {
+  GlassSelect,
+  GlassSelectContent,
+  GlassSelectItem,
+  GlassSelectSeparator,
+  GlassSelectTrigger,
+  GlassSelectValue,
+} from "@1ca/ui/glassyui/glass-select";
 
 type Option = { slug: string; name: string };
 
@@ -8,29 +17,48 @@ export function CompanySelect({ options }: { options: Option[] }) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
-  const current = params.get("company") ?? "all";
+  const company = params.get("company") ?? "all";
+  // A company the list doesn't hold shows the placeholder rather than a blank trigger.
+  const current =
+    company === "all" || options.some((o) => o.slug === company) ? company : "";
 
   return (
-    <select
+    <GlassSelect
       value={current}
-      onChange={(e) => {
+      onValueChange={(value) => {
         const next = new URLSearchParams(params);
-        if (e.target.value === "all") {
+        if (value === "all") {
           next.delete("company");
         } else {
-          next.set("company", e.target.value);
+          next.set("company", value);
         }
         const qs = next.toString();
         router.replace(qs ? `${pathname}?${qs}` : pathname);
       }}
-      className="rounded-md border border-[var(--border)] bg-[var(--surface)] text-sm pl-3 pr-9 py-1.5 text-[var(--text)] cursor-pointer hover:border-indigo-500/50 transition appearance-none bg-no-repeat bg-[right_0.5rem_center] bg-[length:1rem_1rem] bg-[image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2216%22 height=%2216%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%238b90b3%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><polyline points=%226 9 12 15 18 9%22/></svg>')]"
     >
-      <option value="all">All companies</option>
-      {options.map((o) => (
-        <option key={o.slug} value={o.slug}>
-          {o.name}
-        </option>
-      ))}
-    </select>
+      <GlassSelectTrigger
+        aria-label="Company"
+        className="ca-control-sm w-full sm:w-[13.5rem]"
+      >
+        <span className="flex min-w-0 items-center gap-2">
+          <Building2
+            aria-hidden
+            className="hidden size-4 shrink-0 text-ca-muted sm:block"
+          />
+          <span className="truncate">
+            <GlassSelectValue placeholder="Choose a company" />
+          </span>
+        </span>
+      </GlassSelectTrigger>
+      <GlassSelectContent>
+        <GlassSelectItem value="all">All companies</GlassSelectItem>
+        {options.length > 0 ? <GlassSelectSeparator /> : null}
+        {options.map((o) => (
+          <GlassSelectItem key={o.slug} value={o.slug}>
+            {o.name}
+          </GlassSelectItem>
+        ))}
+      </GlassSelectContent>
+    </GlassSelect>
   );
 }

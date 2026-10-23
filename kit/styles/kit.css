@@ -1,0 +1,864 @@
+/*
+ * 1CA Glass: the kit stylesheet. Every app imports it straight after Tailwind:
+ *
+ *   @import "tailwindcss";
+ *   @import "../../kit/styles/kit.css";   (from src/app/globals.css)
+ *
+ * Contents: GlassyUI's material, the 1CA brand tokens for both themes (--ca-*), their mapping
+ * onto GlassyUI's --lg-* tokens, Tailwind utilities for the tokens, and page basics (backdrop,
+ * focus ring, type). See kit/README.md.
+ *
+ * Cascade: GlassyUI keeps everything in @layer components, under Tailwind utilities. The brand
+ * tokens below are unlayered on purpose: GlassProvider also imports liquid.css from JavaScript,
+ * so a second copy can load after this file, and only unlayered declarations outrank it
+ * whichever order the two arrive in. Unlayered rules beat every layered variant, so where
+ * GlassyUI varies a token we override (tinted mode, reduced transparency), the variant is
+ * repeated here too.
+ */
+
+/*
+ * GlassyUI's own stylesheet (liquid.css) is NOT imported here: GlassProvider imports it from
+ * JavaScript, and every app renders KitProviders (which mounts GlassProvider) in its root
+ * layout, so importing it here as well would ship ~29 KB gzipped twice. header.css is only for
+ * GlassHeader, which the kit does not use (the shell has its own top bar).
+ */
+
+/* Tailwind scans the kit's own components, so the classes they use exist in every app. */
+@source "..";
+
+@custom-variant dark (&:where(.dark, .dark *));
+@custom-variant light (&:where(.light, .light *));
+
+/*
+ * motion-ok: motion only when neither the operating system (prefers-reduced-motion) nor
+ * GlassyUI's own reduce-motion preference (data-lg-reduce-motion="1" on <html>) asks for
+ * stillness. Use it instead of motion-safe: for anything that moves on its own:
+ * className="motion-ok:animate-ping". Keeps the utility's specificity.
+ */
+@custom-variant motion-ok {
+  @media (prefers-reduced-motion: no-preference) {
+    &:where(:root:not([data-lg-reduce-motion='1']) *) {
+      @slot;
+    }
+  }
+}
+
+/*
+ * Utilities: bg-ca-surface, text-ca-muted, border-ca-border, bg-ca-accent text-ca-accent-fg,
+ * bg-ca-danger-soft text-ca-danger, ... plus border-ca / divide-ca, ring-ca, outline-ca,
+ * font-ca, font-ca-mono and shadow-ca. Every name carries "ca", so nothing collides with the
+ * apps' own --muted, --accent, --border, --background or --surface.
+ * `inline` makes utilities read the --ca-* variables where they are used, so a subtree with its
+ * own theme gets its own colours.
+ */
+@theme inline {
+  --color-ca-bg: var(--ca-bg);
+  --color-ca-surface: var(--ca-surface);
+  --color-ca-surface-hover: var(--ca-surface-hover);
+  --color-ca-surface-solid: var(--ca-surface-solid);
+  --color-ca-surface-sunken: var(--ca-surface-sunken);
+  --color-ca-border: var(--ca-border);
+  --color-ca-border-strong: var(--ca-border-strong);
+  --color-ca-text: var(--ca-text);
+  --color-ca-muted: var(--ca-text-muted);
+  --color-ca-accent: var(--ca-accent);
+  --color-ca-accent-hover: var(--ca-accent-hover);
+  --color-ca-accent-fg: var(--ca-accent-fg);
+  --color-ca-accent-soft: var(--ca-accent-soft);
+  --color-ca-ring: var(--ca-ring);
+  --color-ca-danger: var(--ca-danger);
+  --color-ca-danger-soft: var(--ca-danger-soft);
+  --color-ca-success: var(--ca-success);
+  --color-ca-success-soft: var(--ca-success-soft);
+  --color-ca-warning: var(--ca-warning);
+  --color-ca-warning-soft: var(--ca-warning-soft);
+  --color-ca-row-hover: var(--ca-row-hover);
+  --color-ca-row-selected: var(--ca-row-selected);
+
+  /* Chart series in fixed order (bg-ca-chart-1, fill-ca-chart-3, stroke-ca-chart-2, ...). */
+  --color-ca-chart-1: var(--ca-chart-1);
+  --color-ca-chart-2: var(--ca-chart-2);
+  --color-ca-chart-3: var(--ca-chart-3);
+  --color-ca-chart-4: var(--ca-chart-4);
+  --color-ca-chart-5: var(--ca-chart-5);
+  --color-ca-chart-6: var(--ca-chart-6);
+  --color-ca-chart-7: var(--ca-chart-7);
+  --color-ca-chart-8: var(--ca-chart-8);
+  --color-ca-chart-other: var(--ca-chart-other);
+  --color-ca-chart-grid: var(--ca-chart-grid);
+  --color-ca-chart-axis: var(--ca-chart-axis);
+
+  /* Each token's one obvious use, as a short name for that utility only. */
+  --border-color-ca: var(--ca-border);
+  --ring-color-ca: var(--ca-ring);
+  --outline-color-ca: var(--ca-ring);
+
+  --font-ca: var(--ca-font);
+  --font-ca-mono: var(--ca-font-mono);
+  --shadow-ca: var(--ca-shadow);
+  --shadow-ca-lift: var(--ca-shadow-lift);
+}
+
+/* ==========================================================================
+   1CA brand tokens
+   Clean-air blue (sky/cyan) on a deep navy dark theme and a bright, airy light theme.
+   Text pairs hold WCAG AA (4.5:1) on --ca-bg, --ca-surface-solid and --ca-surface-sunken,
+   including each status colour on its own -soft tint; --ca-ring and --ca-border-strong hold
+   3:1 against the surfaces they edge.
+   ========================================================================== */
+
+:root {
+  /*
+   * Plain-CSS glass for elements the kit cannot wrap in GlassPanel (Clerk's cards and popovers):
+   * background-color: var(--ca-glass-bg); backdrop-filter: var(--ca-glass-filter). Both turn
+   * solid with reduced transparency and lighter with data-ca-glass="lite" (rules below).
+   */
+  --ca-glass-opacity: 72%;
+  --ca-glass-filter: blur(22px) saturate(1.6);
+  --ca-font:
+    "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI Variable Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+  --ca-font-mono:
+    ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, "Liberation Mono",
+    monospace;
+}
+
+/*
+ * Dark is also the CSS fallback with no theme set (only before the head script runs, or without
+ * JavaScript), matching GlassyUI's own default. The visitor's default choice is "system".
+ */
+:root,
+.dark,
+[data-lg-theme='dark'] {
+  color-scheme: dark;
+
+  --ca-bg: #060b17;
+  /* Translucent fills for cards that sit on the backdrop */
+  --ca-surface: rgb(148 184 233 / 0.06);
+  --ca-surface-hover: rgb(148 184 233 / 0.1);
+  /* Opaque panels for dense data (.ca-solid), and what glass becomes with reduced transparency */
+  --ca-surface-solid: #0e1729;
+  --ca-surface-sunken: #091120;
+  --ca-glass-bg: color-mix(in srgb, var(--ca-surface-solid) var(--ca-glass-opacity), transparent);
+  --ca-border: rgb(148 184 233 / 0.14);
+  --ca-border-strong: rgb(148 184 233 / 0.55);
+  --ca-text: #f2f6fc;
+  --ca-text-muted: #9babc2;
+  --ca-accent: #38bdf8;
+  --ca-accent-hover: #7dd3fc;
+  --ca-accent-fg: #03131f;
+  --ca-accent-soft: rgb(56 189 248 / 0.14);
+  --ca-ring: #38bdf8;
+  --ca-danger: #f87171;
+  --ca-danger-soft: rgb(248 113 113 / 0.14);
+  --ca-success: #34d399;
+  --ca-success-soft: rgb(52 211 153 / 0.14);
+  --ca-warning: #fbbf24;
+  --ca-warning-soft: rgb(251 191 36 / 0.14);
+  --ca-shadow: 0 1px 2px rgb(0 0 0 / 0.32), 0 12px 32px -12px rgb(0 0 0 / 0.6);
+  /* A hovered interactive card: a deeper shadow and a faint sky rim */
+  --ca-shadow-lift: 0 2px 4px rgb(0 0 0 / 0.3), 0 18px 40px -14px rgb(0 0 0 / 0.7);
+  --ca-glow: rgb(56 189 248 / 0.35);
+  /* Table rows on a solid panel */
+  --ca-row-hover: rgb(148 184 233 / 0.06);
+  --ca-row-selected: rgb(56 189 248 / 0.12);
+  --ca-scroll-shadow: rgb(0 0 0 / 0.55);
+  /*
+   * Chart series, in fixed order: assign 1, 2, 3 ... and never cycle; fold a ninth series into
+   * "other". The dataviz reference palette's dark steps, validated on --ca-surface-solid: every
+   * slot is inside the dark lightness band and >= 3:1, worst adjacent pair CVD dE 8.4,
+   * normal-vision dE 19.3. Scatter / map forms (any pair can touch) carry 3 series at most.
+   */
+  --ca-chart-1: #3987e5;
+  --ca-chart-2: #d95926;
+  --ca-chart-3: #199e70;
+  --ca-chart-4: #c98500;
+  --ca-chart-5: #d55181;
+  --ca-chart-6: #008300;
+  --ca-chart-7: #9085e9;
+  --ca-chart-8: #e66767;
+  --ca-chart-other: #6b7a94;
+  --ca-chart-grid: #1c2840;
+  --ca-chart-axis: #3a4a66;
+  /* Something for the glass to bend: sky light top left, indigo top right, teal low right */
+  --ca-backdrop:
+    radial-gradient(70% 55% at 6% -8%, rgb(56 189 248 / 0.17), transparent 70%),
+    radial-gradient(55% 50% at 100% 0%, rgb(99 102 241 / 0.13), transparent 70%),
+    radial-gradient(65% 55% at 78% 108%, rgb(20 184 166 / 0.1), transparent 70%),
+    radial-gradient(45% 45% at -4% 86%, rgb(14 165 233 / 0.08), transparent 70%);
+}
+
+.light,
+[data-lg-theme='light'] {
+  color-scheme: light;
+
+  --ca-bg: #f3f7fc;
+  --ca-surface: rgb(255 255 255 / 0.62);
+  --ca-surface-hover: rgb(255 255 255 / 0.86);
+  --ca-surface-solid: #ffffff;
+  --ca-surface-sunken: #eaf0f7;
+  --ca-glass-bg: color-mix(in srgb, var(--ca-surface-solid) var(--ca-glass-opacity), transparent);
+  --ca-border: rgb(15 40 80 / 0.12);
+  --ca-border-strong: rgb(15 40 80 / 0.5);
+  --ca-text: #0b1526;
+  --ca-text-muted: #43506a;
+  --ca-accent: #0369a1;
+  --ca-accent-hover: #075985;
+  --ca-accent-fg: #ffffff;
+  --ca-accent-soft: rgb(2 132 199 / 0.1);
+  --ca-ring: #0284c7;
+  --ca-danger: #c81e1e;
+  --ca-danger-soft: rgb(220 38 38 / 0.1);
+  --ca-success: #047857;
+  --ca-success-soft: rgb(5 150 105 / 0.1);
+  --ca-warning: #a64b07;
+  --ca-warning-soft: rgb(217 119 6 / 0.12);
+  --ca-shadow: 0 1px 2px rgb(15 40 80 / 0.06), 0 12px 32px -12px rgb(15 40 80 / 0.18);
+  --ca-shadow-lift: 0 2px 4px rgb(15 40 80 / 0.07), 0 18px 40px -14px rgb(15 40 80 / 0.26);
+  --ca-glow: rgb(2 132 199 / 0.28);
+  --ca-row-hover: rgb(15 40 80 / 0.035);
+  --ca-row-selected: rgb(2 132 199 / 0.08);
+  --ca-scroll-shadow: rgb(15 40 80 / 0.16);
+  /*
+   * The reference palette's light steps on white: worst adjacent CVD dE 9.1, normal-vision
+   * dE 19.6. Slots 3, 4 and 5 sit under 3:1 on white, so charts that use them show values as
+   * visible labels or offer a table view.
+   */
+  --ca-chart-1: #2a78d6;
+  --ca-chart-2: #eb6834;
+  --ca-chart-3: #1baf7a;
+  --ca-chart-4: #eda100;
+  --ca-chart-5: #e87ba4;
+  --ca-chart-6: #008300;
+  --ca-chart-7: #6250d6;
+  --ca-chart-8: #e34948;
+  --ca-chart-other: #848fa1;
+  --ca-chart-grid: #e4e9f0;
+  --ca-chart-axis: #b4bfce;
+  --ca-backdrop:
+    radial-gradient(70% 55% at 6% -8%, rgb(14 165 233 / 0.16), transparent 70%),
+    radial-gradient(55% 50% at 100% 0%, rgb(129 140 248 / 0.12), transparent 70%),
+    radial-gradient(65% 55% at 78% 108%, rgb(45 212 191 / 0.14), transparent 70%),
+    radial-gradient(45% 45% at -4% 86%, rgb(56 189 248 / 0.12), transparent 70%);
+}
+
+/* ==========================================================================
+   GlassyUI in the brand
+   Keyed on data-lg-theme (what GlassyUI itself reads), never on :root, so with no theme set
+   GlassyUI keeps its own defaults and no dark value can leak into the light theme. Glass text
+   keeps the luminance GlassyUI tuned its slabs against, so labels stay legible over any
+   backdrop; the prominent tint turns toward sky while keeping white labels at least as
+   legible as the library's own blue.
+   ========================================================================== */
+
+[data-lg-theme='dark'] {
+  --lg-bg: var(--ca-bg);
+  --lg-foreground: var(--ca-text);
+  --lg-muted-foreground: #e0e7f1;
+  --lg-border: rgb(170 200 240 / 0.22);
+  --lg-opaque-surface: var(--ca-surface-solid);
+  --lg-overlay-surface: rgb(14 22 40 / 0.8);
+  --lg-scrim: rgb(2 6 15 / 0.55);
+  /* Fills that carry a white glyph or label: a deeper sky than --ca-accent */
+  --lg-accent: #0284c7;
+  --lg-accent-foreground: #ffffff;
+  --lg-switch-on: #0284c7;
+  --lg-prominent-fill: #0277b5;
+  --lg-prominent-tint: grayscale(1) contrast(0.4) brightness(0.55) sepia(1) hue-rotate(160deg)
+    saturate(6);
+  --lg-prominent-glow: 125 211 252;
+  --lg-prominent-shade: 2 30 56;
+  --lg-focus-ring: var(--ca-ring);
+  --lg-invalid: var(--ca-danger);
+  --lg-slab-tint: rgb(6 14 30 / 0.3);
+  --lg-header-tint: rgb(6 14 30 / 0.35);
+}
+
+[data-lg-theme='dark'][data-lg-mode='tinted'] {
+  --lg-slab-tint: rgb(6 14 30 / 0.55);
+  --lg-header-tint: rgb(6 14 30 / 0.55);
+}
+
+[data-lg-theme='light'] {
+  --lg-bg: var(--ca-bg);
+  --lg-foreground: var(--ca-text);
+  --lg-muted-foreground: var(--ca-text-muted);
+  /* Hairlines (panels, dividers); control edges use --ca-border-strong (rules below). */
+  --lg-border: rgb(15 40 80 / 0.14);
+  --lg-opaque-surface: var(--ca-surface-solid);
+  --lg-overlay-surface: rgb(250 252 255 / 0.84);
+  --lg-scrim: rgb(12 28 56 / 0.18);
+  --lg-accent: #0284c7;
+  --lg-accent-foreground: #ffffff;
+  --lg-switch-on: #0284c7;
+  --lg-prominent-fill: #0277b5;
+  --lg-prominent-tint: grayscale(1) contrast(0.5) brightness(0.35) sepia(1) hue-rotate(160deg)
+    saturate(6) brightness(1.35);
+  --lg-prominent-glow: 125 211 252;
+  --lg-prominent-shade: 2 30 56;
+  --lg-focus-ring: var(--ca-ring);
+  --lg-invalid: var(--ca-danger);
+}
+
+/*
+ * An empty switch's track holds 3:1 on white, like every other control edge. GlassyUI's light
+ * track (grey at 20%) all but vanishes on a white card. Set on the switch itself, so progress
+ * and slider tracks keep their lighter fill.
+ */
+[data-lg-theme='light'] .lg-switch {
+  --lg-track: var(--ca-border-strong);
+}
+
+/* Reduced transparency: GlassyUI turns controls opaque grey; these keep them in the brand's hue. */
+[data-lg-theme='dark'][data-lg-reduce-transparency='1'] {
+  --lg-control-surface: #19253b;
+  --lg-control-surface-hover: #22304a;
+  --lg-track: #2a3a57;
+}
+
+[data-lg-theme='light'][data-lg-reduce-transparency='1'] {
+  --lg-control-surface: #edf2f8;
+  --lg-control-surface-hover: #e1e9f3;
+  --lg-track: #dde5ef;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  [data-lg-theme='dark']:not([data-lg-reduce-transparency='0']) {
+    --lg-control-surface: #19253b;
+    --lg-control-surface-hover: #22304a;
+    --lg-track: #2a3a57;
+  }
+
+  [data-lg-theme='light']:not([data-lg-reduce-transparency='0']) {
+    --lg-control-surface: #edf2f8;
+    --lg-control-surface-hover: #e1e9f3;
+    --lg-track: #dde5ef;
+  }
+}
+
+/*
+ * Lite glass for always-on screens: <html data-ca-glass="lite">. The same savings as GlassyUI's
+ * low quality (no edge lens, so no displacement maps are built; no refraction; a light frost),
+ * but on an attribute GlassProvider never rewrites. A visitor's reduced transparency still wins.
+ */
+:root[data-ca-glass='lite'] {
+  --lg-lens-depth: 0;
+  --lg-lens-dispersion: 0;
+  --lg-refraction-scale: 0;
+  --lg-refraction-blur: 0;
+  --lg-highlight-strength: 0;
+  --lg-scene-highlight: 0.6;
+}
+
+:root[data-ca-glass='lite']:not([data-lg-reduce-transparency='1']) {
+  --lg-glass-blur: 6px;
+  --lg-glass-sat: 1.05;
+  --lg-glass-contrast: 1;
+  --ca-glass-filter: blur(6px) saturate(1.05);
+}
+
+/* The plain-CSS glass (--ca-glass-*) turns solid with reduced transparency, like GlassyUI's. */
+:root[data-lg-reduce-transparency='1'] {
+  --ca-glass-opacity: 100%;
+  --ca-glass-filter: none;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root:not([data-lg-reduce-transparency='0']) {
+    --ca-glass-opacity: 100%;
+    --ca-glass-filter: none;
+  }
+}
+
+/* ==========================================================================
+   Page basics. In @layer base, so an app's own rules and utilities still win.
+   ========================================================================== */
+
+@layer base {
+  body {
+    background-color: var(--ca-bg);
+    color: var(--ca-text);
+    font-family: var(--ca-font);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /*
+   * The backdrop: soft colour fields for the glass to bend. One fixed layer behind the page,
+   * painted once and never repainted on scroll, and no animation. It sits under the body's
+   * content, so it shows only where nothing paints a background over it (an app that sets a
+   * background on <html> covers it). Turn it off with data-ca-backdrop="none" on <html> or <body>.
+   */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0 0 auto;
+    z-index: -1;
+    height: 100vh;
+    height: 100lvh;
+    background-image: var(--ca-backdrop);
+    pointer-events: none;
+  }
+
+  html[data-ca-backdrop='none'] body::before,
+  body[data-ca-backdrop='none']::before,
+  :root[data-lg-reduce-transparency='1'] body::before {
+    display: none;
+  }
+
+  @media (prefers-reduced-transparency: reduce) {
+    :root:not([data-lg-reduce-transparency='0']) body::before {
+      display: none;
+    }
+  }
+
+  @media (prefers-contrast: more), (forced-colors: active), print {
+    body::before {
+      display: none;
+    }
+  }
+
+  /* One focus ring everywhere. :where keeps it at zero specificity, so components restyle it. */
+  :where(a[href], button, input, select, textarea, summary, [tabindex]):focus-visible {
+    outline: 2px solid var(--ca-ring);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: color-mix(in srgb, var(--ca-accent) 30%, transparent);
+  }
+}
+
+/* ==========================================================================
+   Kit components. In @layer components beside GlassyUI, under app utilities.
+   ========================================================================== */
+
+@layer components {
+  /*
+   * Opaque panels for dense data: tables, maps, long lists, charts. No backdrop-filter, so
+   * nothing behind them is re-blurred while they scroll or update. Pair with border-ca,
+   * rounded-* and shadow-ca as needed.
+   */
+  .ca-solid {
+    background-color: var(--ca-surface-solid);
+    color: var(--ca-text);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  /* A GlassyUI panel marked ca-solid drops its frost, lens and grain, as GlassyUI's own
+     reduced-transparency guard does. Pass refraction="none" and lens={false} too, so it builds
+     no maps. */
+  .ca-solid.lg-glass-surface::before {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    background: var(--ca-surface-solid) !important;
+    box-shadow: none !important;
+  }
+
+  .ca-solid.lg-glass-surface::after {
+    background: var(--ca-border);
+  }
+
+  .ca-solid.lg-glass-surface > .lg-noise {
+    display: none;
+  }
+
+  /* ThemeToggle: a compact segmented control sized to its icons, not the row. */
+  .lg-segmented.ca-theme-toggle {
+    display: inline-grid;
+    width: auto;
+    font-size: 0.8125rem;
+    vertical-align: middle;
+  }
+
+  .lg-segmented.ca-theme-toggle > .lg-segmented-item {
+    padding: 0.375rem 0.5625rem;
+  }
+
+  .lg-segmented.ca-theme-toggle--labels > .lg-segmented-item {
+    padding-inline: 0.75rem;
+  }
+
+  .ca-theme-toggle__icon {
+    flex: none;
+    width: 1rem;
+    height: 1rem;
+  }
+
+  .lg-button.ca-theme-menu-trigger {
+    padding: 0.5rem;
+    line-height: 1;
+  }
+
+  /*
+   * Page primitives (src/components). Selectors are doubled where GlassyUI styles the same
+   * element in this layer: liquid.css can load after this file, so a single class would lose.
+   */
+
+  /* Interactive cards lift on hover and pick up a faint accent rim. */
+  .ca-lift.ca-lift {
+    transition:
+      translate 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      box-shadow 220ms ease,
+      border-color 150ms ease,
+      background-color 150ms ease;
+  }
+
+  /* A card wrapped in a link (Card href) lights up while the link has keyboard focus. */
+  :focus-visible > .ca-lift.ca-lift {
+    box-shadow: var(--ca-shadow-lift), 0 0 0 1px var(--ca-glow);
+  }
+
+  @media (hover: hover) {
+    .ca-lift.ca-lift:hover {
+      translate: 0 -2px;
+      box-shadow: var(--ca-shadow-lift), 0 0 0 1px var(--ca-glow);
+    }
+
+    .ca-lift.ca-lift:active {
+      translate: 0 0;
+      transition-duration: 80ms;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ca-lift.ca-lift,
+    .ca-lift.ca-lift:hover {
+      translate: none;
+    }
+  }
+
+  [data-lg-reduce-motion='1'] .ca-lift.ca-lift:hover {
+    translate: none;
+  }
+
+  /*
+   * Frosted page chrome that scrolls over content: sticky page headers and toolbars. Dense
+   * enough that a donut or a bar chart passing under it reads as a faint blur, not a smudge.
+   */
+  .ca-frost {
+    background-color: color-mix(in srgb, var(--ca-bg) 88%, transparent);
+    -webkit-backdrop-filter: blur(24px) saturate(1.5);
+    backdrop-filter: blur(24px) saturate(1.5);
+  }
+
+  :root[data-ca-glass='lite'] .ca-frost {
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+  }
+
+  :root[data-lg-reduce-transparency='1'] .ca-frost {
+    background-color: var(--ca-bg);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  @media (prefers-reduced-transparency: reduce) {
+    :root:not([data-lg-reduce-transparency='0']) .ca-frost {
+      background-color: var(--ca-bg);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+  }
+
+  /*
+   * Edge shadows on a horizontally scrolling solid panel (tables): they appear only on a side
+   * with more to scroll to. Pure CSS: the covers scroll with the content, the shadows do not.
+   */
+  .ca-scroll-shadows {
+    background:
+      linear-gradient(to right, var(--ca-surface-solid) 30%, transparent) left center / 2.5rem
+        100% no-repeat local,
+      linear-gradient(to left, var(--ca-surface-solid) 30%, transparent) right center / 2.5rem
+        100% no-repeat local,
+      radial-gradient(farthest-side at 0 50%, var(--ca-scroll-shadow), transparent) left center /
+        0.875rem 100% no-repeat scroll,
+      radial-gradient(farthest-side at 100% 50%, var(--ca-scroll-shadow), transparent) right
+        center / 0.875rem 100% no-repeat scroll,
+      var(--ca-surface-solid);
+  }
+
+  /*
+   * Compact controls for toolbars, filter bars and dense forms: 36px tall. Works on GlassInput,
+   * GlassTextarea, GlassSelectTrigger, GlassButton and GlassSegmentedControl:
+   * className="ca-control-sm".
+   */
+  .lg-input.ca-control-sm {
+    height: 2.25rem;
+    padding-block: 0;
+    padding-inline: 0.75rem;
+    border-radius: 0.75rem;
+    font-size: 0.875rem;
+  }
+
+  .lg-input.lg-textarea.ca-control-sm {
+    height: auto;
+    padding-block: 0.5rem;
+  }
+
+  .lg-button.ca-control-sm {
+    height: 2.25rem;
+    padding-block: 0;
+    padding-inline: 0.875rem;
+    font-size: 0.875rem;
+  }
+
+  /* GlassSegmentedControl: sized to its options instead of the row. */
+  .lg-segmented.ca-control-sm {
+    display: inline-grid;
+    width: auto;
+    vertical-align: middle;
+  }
+
+  .lg-segmented.ca-control-sm > .lg-segmented-item {
+    padding: 0.3125rem 0.75rem;
+  }
+
+  /* Phones zoom into inputs under 16px; keep compact inputs at 16px on touch screens. */
+  @media (pointer: coarse) {
+    .lg-input.ca-control-sm {
+      font-size: 1rem;
+    }
+  }
+
+  /*
+   * GlassyUI controls in the brand. Doubled selectors, because liquid.css can load after this
+   * file in the same layer.
+   */
+
+  /*
+   * Text fields, select triggers and textareas (all .lg-input) take --ca-border-strong, which
+   * holds 3:1 against the surfaces they sit on; GlassyUI's hairline (--lg-border) does not.
+   * Focus and invalid keep their own edge.
+   */
+  .lg-input.lg-input {
+    border-color: var(--ca-border-strong);
+  }
+
+  .lg-input.lg-input:focus {
+    border-color: var(--lg-focus-ring);
+  }
+
+  .lg-input.lg-input[aria-invalid='true'] {
+    border-color: var(--lg-invalid);
+  }
+
+  /*
+   * Skeletons: a tint of the text colour rather than GlassyUI's white control fill, which is
+   * invisible on white glass and solid cards in the light theme. The light sheen is softer to
+   * match.
+   */
+  .lg-skeleton.lg-skeleton {
+    background: color-mix(in srgb, var(--ca-text) 8%, transparent);
+  }
+
+  [data-lg-theme='light'] .lg-skeleton.lg-skeleton::after {
+    background: linear-gradient(100deg, transparent 20%, rgb(255 255 255 / 0.55) 50%, transparent 80%);
+  }
+
+  /*
+   * Alerts in the brand's status colours, so a danger alert is the same red as a danger pill,
+   * figure or field error: a tint of the tone over the solid surface, a rim and icon in the
+   * tone, body text in the text colour. GlassyUI's own fills (pink danger, olive warning) are
+   * outside the palette.
+   */
+  .lg-alert.lg-alert {
+    --ca-alert-tone: var(--ca-accent);
+
+    background: color-mix(in srgb, var(--ca-alert-tone) 12%, var(--ca-surface-solid));
+    box-shadow:
+      inset 0 1px 0 var(--lg-alert-highlight),
+      inset 0 0 0 1px color-mix(in srgb, var(--ca-alert-tone) 35%, transparent);
+  }
+
+  .lg-alert.lg-alert[data-tone='success'] {
+    --ca-alert-tone: var(--ca-success);
+  }
+
+  .lg-alert.lg-alert[data-tone='warning'] {
+    --ca-alert-tone: var(--ca-warning);
+  }
+
+  .lg-alert.lg-alert[data-tone='danger'] {
+    --ca-alert-tone: var(--ca-danger);
+  }
+
+  .lg-alert.lg-alert .lg-alert-icon {
+    color: var(--ca-alert-tone);
+  }
+
+  /*
+   * The ⌘K list: a thin themed scrollbar instead of the platform's grey one with arrows. While
+   * there is more below, the bottom edge fades out, so a row cut by the edge reads as "scroll
+   * for more"; the fade lifts as the list reaches its end (scroll-driven, where supported).
+   */
+  .lg-command-list.lg-command-list {
+    scrollbar-width: thin;
+    scrollbar-color: var(--ca-border-strong) transparent;
+  }
+
+  @supports (animation-timeline: scroll()) {
+    .lg-command-list.lg-command-list {
+      -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--ca-list-fade)), transparent);
+      mask-image: linear-gradient(to bottom, #000 calc(100% - var(--ca-list-fade)), transparent);
+      animation: ca-list-fade linear both;
+      animation-timeline: scroll(self);
+    }
+  }
+
+  /*
+   * Inline links in running text: the accent colour, always underlined (a link never relies on
+   * colour alone), the underline firming up on hover, and the kit's focus ring:
+   * <a className="ca-link" href="…">contact support</a>. Not for buttons, nav or table-row links.
+   */
+  .ca-link {
+    border-radius: 0.125rem;
+    color: var(--ca-accent);
+    font-weight: 500;
+    text-decoration-line: underline;
+    text-decoration-thickness: 1px;
+    text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
+    text-underline-offset: 0.2em;
+    transition:
+      color 150ms ease,
+      text-decoration-color 150ms ease;
+  }
+
+  .ca-link:hover {
+    color: var(--ca-accent-hover);
+    text-decoration-color: currentColor;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ca-link {
+      transition: none;
+    }
+  }
+
+  /*
+   * Inline code: ids, keys, env names, commands. Mono on a sunken chip with a hairline, never
+   * under 12px: <code className="ca-code">NEXT_PUBLIC_SUPPORT_EMAIL</code>.
+   */
+  .ca-code {
+    padding: 0.0625rem 0.375rem;
+    border-radius: 0.375rem;
+    background-color: var(--ca-surface-sunken);
+    box-shadow: inset 0 0 0 1px var(--ca-border);
+    color: var(--ca-text);
+    font-family: var(--ca-font-mono);
+    font-size: max(0.75rem, 0.875em);
+    font-variant-ligatures: none;
+    overflow-wrap: anywhere;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
+
+  /*
+   * Motion. Everything below moves only when neither the operating system nor GlassyUI's
+   * reduce-motion preference (data-lg-reduce-motion="1" on <html>) asks for stillness, and
+   * finishes within 400ms. :where() keeps each class at its own specificity.
+   */
+  @media (prefers-reduced-motion: no-preference) {
+    /* A gentle rise on first paint. Stagger with style={{ '--ca-enter-delay': '60ms' }}. */
+    .ca-enter:where(:root:not([data-lg-reduce-motion='1']) *) {
+      animation: ca-enter 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+      animation-delay: var(--ca-enter-delay, 0ms);
+    }
+
+    /*
+     * Chart draw-ins (@1ca/ui/components/charts). Stagger with --ca-chart-delay; the charts cap
+     * their own staggers so a whole chart has landed within about half a second.
+     */
+    .ca-chart-grow:where(:root:not([data-lg-reduce-motion='1']) *) {
+      transform-origin: bottom;
+      animation: ca-chart-grow 360ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+      animation-delay: var(--ca-chart-delay, 0ms);
+    }
+
+    .ca-chart-grow-x:where(:root:not([data-lg-reduce-motion='1']) *) {
+      transform-origin: left;
+      animation: ca-chart-grow-x 360ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+      animation-delay: var(--ca-chart-delay, 0ms);
+    }
+
+    .ca-chart-fade:where(:root:not([data-lg-reduce-motion='1']) *) {
+      animation: ca-chart-fade 320ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+      animation-delay: var(--ca-chart-delay, 0ms);
+    }
+
+    .ca-chart-wipe:where(:root:not([data-lg-reduce-motion='1']) *) {
+      animation: ca-chart-wipe 400ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+      animation-delay: var(--ca-chart-delay, 0ms);
+    }
+
+    .ca-chart-ring:where(:root:not([data-lg-reduce-motion='1']) *) {
+      animation: ca-chart-ring 400ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+      animation-delay: var(--ca-chart-delay, 0ms);
+    }
+  }
+}
+
+@keyframes ca-enter {
+  from {
+    opacity: 0;
+    translate: 0 6px;
+  }
+}
+
+@keyframes ca-chart-grow {
+  from {
+    transform: scaleY(0);
+  }
+}
+
+@keyframes ca-chart-grow-x {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes ca-chart-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Reveals a line chart left to right; the outsets keep stroke caps and end dots unclipped. */
+@keyframes ca-chart-wipe {
+  from {
+    clip-path: inset(-8px 100% -8px -8px);
+  }
+  to {
+    clip-path: inset(-8px -8px -8px -8px);
+  }
+}
+
+/* A ring gauge's arc draws from 12 o'clock; --ca-chart-circ is the circle's circumference. */
+@keyframes ca-chart-ring {
+  from {
+    stroke-dashoffset: var(--ca-chart-circ, 252);
+  }
+}
+
+/*
+ * The ⌘K list's bottom fade, driven by its own scroll position: full while there is more
+ * below, gone at the end. A list that does not scroll has no active timeline, so the value
+ * stays at its initial 0 and nothing fades.
+ */
+@property --ca-list-fade {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+@keyframes ca-list-fade {
+  0%,
+  80% {
+    --ca-list-fade: 2.5rem;
+  }
+  100% {
+    --ca-list-fade: 0px;
+  }
+}

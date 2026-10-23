@@ -1,3 +1,34 @@
+import {
+  BadgeCheck,
+  ChartPie,
+  DollarSign,
+  Layers,
+  List,
+  Package,
+} from "lucide-react";
+import type { Metadata } from "next";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@1ca/ui/components/card";
+import { BarList, MiniBar, slotColor } from "@1ca/ui/components/charts";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableEmpty,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@1ca/ui/components/data-table";
+import { EmptyState } from "@1ca/ui/components/empty-state";
+import { Page } from "@1ca/ui/components/page";
+import { Section } from "@1ca/ui/components/section";
+import { StatCard } from "@1ca/ui/components/stat-card";
+import { StatusPill, type StatusTone } from "@1ca/ui/components/status-pill";
 import { resolveCompany } from "@/lib/queries/company";
 import { parseRange } from "@/lib/queries/range";
 import {
@@ -6,33 +37,26 @@ import {
   getTopRawItems,
 } from "@/lib/queries/service-mix";
 import {
+  categorySlot,
+  companySlot,
+  enterDelay,
   fmtInt,
   fmtMoney,
   fmtMoneyCompact,
   fmtPct,
-  KpiCard,
-  Section,
-  BarChart,
-  PageHeader,
-  type Tone,
 } from "../_components";
+import { NoCompanyPage, ReportHeader } from "../_report-header";
 
 export const dynamic = "force-dynamic";
 
-const CATEGORY_TONE: Record<string, Tone> = {
-  duct: "indigo",
-  "dryer-vent": "sky",
-  carpet: "violet",
-  upholstery: "fuchsia",
-  hvac: "emerald",
-  sealing: "teal",
-  sanitization: "amber",
-  insulation: "rose",
-  repair: "zinc",
-  discount: "fuchsia",
-  fee: "zinc",
-  "(unmapped)": "zinc",
-};
+export const metadata: Metadata = { title: "Service mix" };
+
+// The catalog-mapping health shown under "Mapped to catalog".
+function mappingStatus(mappedPct: number): { tone: StatusTone; label: string } {
+  if (mappedPct >= 0.7) return { tone: "success", label: "Healthy" };
+  if (mappedPct >= 0.4) return { tone: "warning", label: "Partly mapped" };
+  return { tone: "danger", label: "Mostly unmapped" };
+}
 
 export default async function ServiceMixPage({
   searchParams,
@@ -41,7 +65,7 @@ export default async function ServiceMixPage({
 }) {
   const sp = await searchParams;
   const company = await resolveCompany(sp.company);
-  if (!company) return <main className="p-10">No company seeded.</main>;
+  if (!company) return <NoCompanyPage icon={ChartPie} title="Service mix" />;
 
   const range = parseRange(sp.range);
   const [categories, topItems, cross] = await Promise.all([
@@ -64,191 +88,209 @@ export default async function ServiceMixPage({
       perCompany.set(r.companySlug, { name: r.companyName, revenue: r.revenue });
   }
 
-  return (
-    <main className="px-6 py-8">
-      <div className="mx-auto max-w-7xl">
-        <PageHeader
-          title={`${company.name} · Service Mix`}
-          subtitle={`Line-item categories · ${range.label.toLowerCase()}`}
-        />
+  const mapping = mappingStatus(mappedPct);
 
-        <section className="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <KpiCard
+  return (
+    <Page>
+      <ReportHeader
+        icon={ChartPie}
+        eyebrow={company.name}
+        title="Service mix"
+        description={`Line-item categories · ${range.label.toLowerCase()}`}
+      />
+
+      <Section title="Overview">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard
+            className="ca-enter"
+            style={enterDelay(0)}
             label="Line items"
             value={fmtInt(totalLines)}
-            tone="indigo"
-            delay={0}
+            icon={List}
           />
-          <KpiCard
+          <StatCard
+            className="ca-enter"
+            style={enterDelay(1)}
             label="Line-item revenue"
             value={fmtMoney(totalRev)}
-            tone="emerald"
-            delay={60}
+            icon={DollarSign}
           />
-          <KpiCard
+          <StatCard
+            className="ca-enter"
+            style={enterDelay(2)}
             label="Mapped to catalog"
             value={fmtPct(mappedPct, 0)}
-            tone={mappedPct >= 0.7 ? "emerald" : mappedPct >= 0.4 ? "amber" : "rose"}
-            delay={120}
+            hint={<StatusPill tone={mapping.tone}>{mapping.label}</StatusPill>}
+            icon={BadgeCheck}
           />
-          <KpiCard
+          <StatCard
+            className="ca-enter"
+            style={enterDelay(3)}
             label="Categories seen"
             value={fmtInt(categories.length)}
-            tone="violet"
-            delay={180}
+            icon={Layers}
           />
-        </section>
+        </div>
+      </Section>
 
-        <Section
-          title="Revenue by category"
-          subtitle={range.label}
-        >
-          {categories.length === 0 ? (
-            <div className="py-12 text-center text-zinc-500 text-sm">
-              No invoiced line items yet for {company.name}.
-            </div>
-          ) : (
-            <BarChart
-              ariaLabel="Revenue by service category"
-              tone="emerald"
-              format={fmtMoneyCompact}
-              data={categories.map((c) => ({
-                label: c.category,
-                value: c.revenue,
-                tooltip: `${c.category}: ${fmtMoney(c.revenue)} (${c.itemCount} lines)`,
-              }))}
+      {categories.length === 0 ? (
+        <Card variant="solid">
+          <CardHeader>
+            <CardTitle as="h2">Revenue by category</CardTitle>
+            <CardDescription>{range.label}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <EmptyState
+              icon={Layers}
+              title={`No invoiced line items yet for ${company.name}.`}
+              description="Try a longer date range."
             />
-          )}
-        </Section>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-5">
+          <Card variant="solid" className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle as="h2">Revenue by category</CardTitle>
+              <CardDescription>{range.label}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <BarList
+                ariaLabel="Revenue by service category"
+                format={fmtMoneyCompact}
+                labelClassName="capitalize"
+                data={categories.map((c) => ({
+                  label: c.category,
+                  value: c.revenue,
+                  slot: categorySlot(c.category),
+                  tooltip: `${c.category}: ${fmtMoney(c.revenue)} (${c.itemCount} lines)`,
+                }))}
+              />
+            </CardContent>
+          </Card>
 
-        <Section title="Category breakdown" padded={false}>
-          {categories.length === 0 ? null : (
-            <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[520px]">
-              <thead className="text-left text-[11px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400 bg-zinc-50/60 dark:bg-zinc-900/40">
-                <tr>
-                  <th className="px-6 py-2.5 font-medium">Category</th>
-                  <th className="px-6 py-2.5 font-medium text-right">Lines</th>
-                  <th className="px-6 py-2.5 font-medium text-right">Revenue</th>
-                  <th className="px-6 py-2.5 font-medium text-right">Share</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/60">
-                {categories.map((c) => {
-                  const pct = totalRev > 0 ? c.revenue / totalRev : 0;
-                  const tone = CATEGORY_TONE[c.category] ?? "zinc";
-                  return (
-                    <tr
-                      key={c.category}
-                      className="hover:bg-zinc-50/60 dark:hover:bg-zinc-800/40 transition-colors"
-                    >
-                      <td className="px-6 py-2.5">
-                        <span className="inline-flex items-center gap-2">
-                          <span
-                            className={`size-2 rounded-full ${
-                              {
-                                emerald: "bg-emerald-500",
-                                indigo: "bg-indigo-500",
-                                sky: "bg-sky-500",
-                                violet: "bg-violet-500",
-                                rose: "bg-rose-500",
-                                amber: "bg-amber-500",
-                                teal: "bg-teal-500",
-                                fuchsia: "bg-fuchsia-500",
-                                zinc: "bg-zinc-400",
-                              }[tone]
-                            }`}
-                          />
-                          <span className="text-zinc-900 dark:text-zinc-100 capitalize">
-                            {c.category}
-                          </span>
-                        </span>
-                      </td>
-                      <td className="px-6 py-2.5 text-right tabular-nums">
-                        {fmtInt(c.itemCount)}
-                      </td>
-                      <td className="px-6 py-2.5 text-right font-medium tabular-nums">
-                        {fmtMoney(c.revenue)}
-                      </td>
-                      <td className="px-6 py-2.5 text-right">
-                        <div className="inline-flex items-center gap-2 justify-end w-full">
-                          <div className="h-1.5 w-16 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
-                            <div
-                              className="h-full bg-gradient-to-r from-indigo-500 to-violet-500"
-                              style={{ width: `${(pct * 100).toFixed(1)}%` }}
+          <Card variant="solid" className="overflow-hidden pb-0 lg:col-span-3">
+            <CardHeader>
+              <CardTitle as="h2">Category breakdown</CardTitle>
+              <CardDescription>Lines, revenue and share of revenue</CardDescription>
+            </CardHeader>
+            <CardContent flush>
+              <Table
+                surface="none"
+                label="Category breakdown"
+                className="min-w-[30rem]"
+              >
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Category</TableHead>
+                    <TableHead numeric>Lines</TableHead>
+                    <TableHead numeric>Revenue</TableHead>
+                    <TableHead numeric>Share</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {categories.map((c) => {
+                    const pct = totalRev > 0 ? c.revenue / totalRev : 0;
+                    const slot = categorySlot(c.category);
+                    return (
+                      <TableRow key={c.category}>
+                        <TableCell>
+                          <span className="inline-flex items-center gap-2">
+                            <span
+                              aria-hidden
+                              className="size-2.5 shrink-0 rounded-full"
+                              style={{ backgroundColor: slotColor(slot) }}
                             />
-                          </div>
-                          <span className="text-xs text-zinc-500 w-10 text-right tabular-nums">
-                            {fmtPct(pct, 0)}
+                            <span className="font-medium capitalize">
+                              {c.category}
+                            </span>
                           </span>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            </div>
-          )}
-        </Section>
+                        </TableCell>
+                        <TableCell numeric muted>
+                          {fmtInt(c.itemCount)}
+                        </TableCell>
+                        <TableCell numeric className="font-medium">
+                          {fmtMoney(c.revenue)}
+                        </TableCell>
+                        <TableCell numeric>
+                          <span className="inline-flex items-center justify-end gap-2">
+                            <MiniBar value={pct} slot={slot} />
+                            <span className="w-10 text-xs text-ca-muted">
+                              {fmtPct(pct, 0)}
+                            </span>
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
-        <Section title="Top items by raw name" subtitle={range.label} padded={false}>
-          {topItems.length === 0 ? (
-            <div className="px-6 py-6 text-zinc-500 text-sm text-center">
-              No items yet.
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[640px]">
-              <thead className="text-left text-[11px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400 bg-zinc-50/60 dark:bg-zinc-900/40">
-                <tr>
-                  <th className="px-6 py-2.5 font-medium">Item</th>
-                  <th className="px-6 py-2.5 font-medium text-right">Lines</th>
-                  <th className="px-6 py-2.5 font-medium text-right">Avg price</th>
-                  <th className="px-6 py-2.5 font-medium text-right">Revenue</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/60">
-                {topItems.map((row) => (
-                  <tr
-                    key={row.name}
-                    className="hover:bg-zinc-50/60 dark:hover:bg-zinc-800/40 transition-colors"
-                  >
-                    <td className="px-6 py-2.5 text-zinc-900 dark:text-zinc-100 truncate max-w-md">
+      <Card variant="solid" className="overflow-hidden pb-0">
+        <CardHeader>
+          <CardTitle as="h2">Top items by raw name</CardTitle>
+          <CardDescription>{range.label}</CardDescription>
+        </CardHeader>
+        <CardContent flush>
+          <Table surface="none" label="Top items by raw name" className="min-w-[36rem]">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Item</TableHead>
+                <TableHead numeric>Lines</TableHead>
+                <TableHead numeric>Avg price</TableHead>
+                <TableHead numeric>Revenue</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {topItems.length === 0 ? (
+                <TableEmpty colSpan={4} icon={Package} title="No items yet." />
+              ) : (
+                topItems.map((row) => (
+                  <TableRow key={row.name}>
+                    <TableCell className="max-w-md truncate font-medium">
                       {row.name}
-                    </td>
-                    <td className="px-6 py-2.5 text-right tabular-nums">
+                    </TableCell>
+                    <TableCell numeric muted>
                       {fmtInt(row.count)}
-                    </td>
-                    <td className="px-6 py-2.5 text-right tabular-nums">
+                    </TableCell>
+                    <TableCell numeric muted>
                       {fmtMoney(row.avgPrice)}
-                    </td>
-                    <td className="px-6 py-2.5 text-right font-medium tabular-nums">
+                    </TableCell>
+                    <TableCell numeric className="font-medium">
                       {fmtMoney(row.revenue)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            </div>
-          )}
-        </Section>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
-        {perCompany.size > 1 && (
-          <Section title="Cross-company line-item revenue" subtitle={range.label}>
-            <BarChart
+      {perCompany.size > 1 && (
+        <Card variant="solid">
+          <CardHeader>
+            <CardTitle as="h2">Cross-company line-item revenue</CardTitle>
+            <CardDescription>{range.label}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <BarList
               ariaLabel="Revenue per company"
-              tone="violet"
               format={fmtMoneyCompact}
               data={Array.from(perCompany.entries()).map(([slug, c]) => ({
-                label: slug,
+                label: c.name,
                 value: c.revenue,
+                slot: companySlot(slug),
                 tooltip: `${c.name}: ${fmtMoney(c.revenue)}`,
               }))}
             />
-          </Section>
-        )}
-      </div>
-    </main>
+          </CardContent>
+        </Card>
+      )}
+    </Page>
   );
 }

@@ -1,4 +1,47 @@
+import {
+  ArrowLeft,
+  ArrowUpRight,
+  DollarSign,
+  Inbox,
+  LayoutDashboard,
+  Receipt,
+  SearchX,
+  UserPlus,
+  Wallet,
+} from "lucide-react";
+import type { Metadata } from "next";
 import Link from "next/link";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@1ca/ui/components/card";
+import {
+  AreaChart,
+  ChartLegend,
+  DonutChart,
+  MiniBar,
+  RingGauge,
+  slotColor,
+} from "@1ca/ui/components/charts";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableEmpty,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@1ca/ui/components/data-table";
+import { EmptyState } from "@1ca/ui/components/empty-state";
+import { Page } from "@1ca/ui/components/page";
+import { Section } from "@1ca/ui/components/section";
+import { Sparkline } from "@1ca/ui/components/sparkline";
+import { StatCard } from "@1ca/ui/components/stat-card";
+import { GlassButton } from "@1ca/ui/glassyui/glass-button";
+import { formatDate } from "@1ca/ui/lib/format";
 import { resolveCompany } from "@/lib/queries/company";
 import { parseRange } from "@/lib/queries/range";
 import {
@@ -12,45 +55,23 @@ import {
   getOverviewCategories,
 } from "@/lib/queries/overview";
 import {
-  AreaChart,
-  BarChart,
-  DonutChart,
-  KpiCard,
-  PageHeader,
-  RingGauge,
-  Section,
+  categorySlot,
+  companySlot,
+  enterDelay,
   fmtInt,
   fmtMoney,
   fmtMoneyCompact,
   pctDelta,
-  type Tone,
+  toStatDelta,
 } from "./_components";
+import { ReportHeader } from "./_report-header";
 
 export const dynamic = "force-dynamic";
 
-const COMPANY_TONES: Record<string, Tone> = {
-  "1cleanair": "indigo",
-  homedepot: "emerald",
-  enviroduct: "violet",
-};
+export const metadata: Metadata = { title: "Executive overview" };
 
-const COMPANY_HEX: Record<string, string> = {
-  "1cleanair": "#6366f1",
-  homedepot: "#10b981",
-  enviroduct: "#8b5cf6",
-  default: "#71717a",
-};
-
-const CATEGORY_TONE: Record<string, Tone> = {
-  duct: "indigo",
-  "dryer-vent": "sky",
-  carpet: "violet",
-  upholstery: "fuchsia",
-  hvac: "emerald",
-  sealing: "teal",
-  sanitization: "amber",
-  insulation: "rose",
-};
+const KPI_GRID_4 = "grid gap-4 sm:grid-cols-2 xl:grid-cols-4";
+const KPI_GRID_5 = "grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5";
 
 export default async function ExecutivePage({
   searchParams,
@@ -73,207 +94,220 @@ export default async function ExecutivePage({
       .map((c) => ({
         label: c.name,
         value: c.revenue,
-        tone: COMPANY_TONES[c.slug] ?? ("indigo" as Tone),
+        slot: companySlot(c.slug),
         href: `/?company=${c.slug}&range=${range.preset}`,
       }));
 
     const areaSeries = monthly.series.map((s) => ({
       label: s.name,
-      tone: COMPANY_TONES[s.slug] ?? ("indigo" as Tone),
+      slot: companySlot(s.slug),
       points: monthly.months.map((m, i) => ({
         x: m.slice(5),
         y: s.values[i] ?? 0,
       })),
     }));
 
+    // All companies together, month by month, for the revenue card's trend line.
+    const monthlyTotals = monthly.months.map((_, i) =>
+      monthly.series.reduce((a, s) => a + (s.values[i] ?? 0), 0),
+    );
+
     const totalCategoryRevenue =
       categories.reduce((a, c) => a + c.revenue, 0) || 1;
 
     return (
-      <main className="px-6 py-6">
-        <div className="mx-auto max-w-7xl">
-          <PageHeader
-            title="All companies"
-            subtitle={`${range.label} · click a company to drill in`}
-          />
+      <Page>
+        <ReportHeader
+          icon={LayoutDashboard}
+          eyebrow="All companies"
+          title="Executive overview"
+          description={`${range.label} · click a company to drill in`}
+        />
 
-          <section className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <KpiCard
+        <Section title="Overview">
+          <div className={KPI_GRID_4}>
+            <StatCard
+              className="ca-enter"
+              style={enterDelay(0)}
               label="Total revenue"
               value={fmtMoney(totals.revenue)}
-              tone="emerald"
-              delay={0}
+              icon={DollarSign}
+              hint="Invoiced"
+              sparkline={
+                // The total belongs to no single entity, and every chart slot on
+                // this page is already one (companies 1-3, categories 1-8; slot 1
+                // is 1CleanAir), so it takes the accent rather than a slot.
+                <Sparkline
+                  data={monthlyTotals}
+                  className="h-full text-ca-accent"
+                  label="Revenue, last 12 months"
+                />
+              }
             />
-            <KpiCard
+            <StatCard
+              className="ca-enter"
+              style={enterDelay(1)}
               label="Invoices"
               value={fmtInt(totals.invoices)}
-              tone="indigo"
-              delay={60}
+              icon={Receipt}
             />
-            <KpiCard
+            <StatCard
+              className="ca-enter"
+              style={enterDelay(2)}
               label="New customers"
               value={fmtInt(totals.newCustomers)}
-              tone="violet"
-              delay={120}
+              icon={UserPlus}
             />
-            <KpiCard
+            <StatCard
+              className="ca-enter"
+              style={enterDelay(3)}
               label="Outstanding AR"
               value={fmtMoney(totals.outstandingAr)}
-              tone="rose"
-              delay={180}
+              icon={Wallet}
+              hint="Unpaid invoices"
             />
-          </section>
+          </div>
+        </Section>
 
-          <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
-              <Section
-                title="Monthly revenue · by company"
-                subtitle="Last 12 months · invoiced"
-              >
-                <AreaChart
-                  ariaLabel="Monthly revenue per company"
-                  format={fmtMoneyCompact}
-                  series={areaSeries}
+        <div className="grid gap-4 lg:grid-cols-3">
+          <Card variant="solid" className="lg:col-span-2">
+            <CardHeader
+              actions={
+                // The key sits beside the title as in every chart card. Until the
+                // card is wide enough (xl) it stacks into a column, so three
+                // company names don't squeeze the title.
+                <ChartLegend
+                  items={areaSeries}
+                  className="max-xl:flex-col max-xl:items-start"
                 />
-                <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
-                  {areaSeries.map((s) => (
-                    <span
-                      key={s.label}
-                      className="inline-flex items-center gap-2 text-[var(--text-muted)]"
-                    >
-                      <span
-                        className="size-2.5 rounded-sm"
-                        style={{
-                          backgroundColor:
-                            COMPANY_HEX[
-                              s.label.toLowerCase().replace(/\s/g, "")
-                            ] ?? "#6366f1",
-                        }}
-                      />
-                      {s.label}
-                    </span>
-                  ))}
-                </div>
-              </Section>
-            </div>
-
-            <Section
-              title="Revenue split"
-              subtitle={range.label}
+              }
             >
+              <CardTitle as="h2">Monthly revenue · by company</CardTitle>
+              <CardDescription>Last 12 months · invoiced</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <AreaChart
+                ariaLabel="Monthly revenue per company"
+                format={fmtMoneyCompact}
+                valueFormat={fmtMoney}
+                series={areaSeries}
+                tableLabel="Monthly revenue per company"
+              />
+            </CardContent>
+          </Card>
+
+          <Card variant="solid">
+            <CardHeader>
+              <CardTitle as="h2">Revenue split</CardTitle>
+              <CardDescription>{range.label}</CardDescription>
+            </CardHeader>
+            <CardContent>
               <DonutChart
                 ariaLabel="Revenue per company"
                 centerLabel="Total"
                 centerValue={fmtMoneyCompact(totals.revenue)}
                 slices={slices}
               />
-            </Section>
-          </div>
+            </CardContent>
+          </Card>
+        </div>
 
-          {categories.length > 0 && (
-            <Section
-              title="Service categories · cross-company"
-              subtitle={`Top categories by line-item revenue · ${range.label.toLowerCase()}`}
-            >
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-                {categories.map((c) => {
-                  const pct = c.revenue / totalCategoryRevenue;
-                  return (
-                    <RingGauge
-                      key={c.category}
-                      value={c.revenue}
-                      total={totalCategoryRevenue}
-                      label={c.category}
-                      centerLabel={`${(pct * 100).toFixed(0)}%`}
-                      tone={CATEGORY_TONE[c.category] ?? "indigo"}
-                    />
-                  );
-                })}
-              </div>
-            </Section>
-          )}
+        {categories.length > 0 && (
+          <Section
+            title="Service categories · cross-company"
+            description={`Top categories by line-item revenue · ${range.label.toLowerCase()}`}
+          >
+            <Card variant="solid">
+              <CardContent>
+                <ul className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 lg:grid-cols-6">
+                  {categories.map((c, i) => {
+                    const pct = c.revenue / totalCategoryRevenue;
+                    return (
+                      <li
+                        key={c.category}
+                        title={`${c.category}: ${fmtMoney(c.revenue)}`}
+                      >
+                        <RingGauge
+                          value={c.revenue}
+                          total={totalCategoryRevenue}
+                          label={c.category}
+                          centerLabel={`${(pct * 100).toFixed(0)}%`}
+                          slot={categorySlot(c.category)}
+                          delay={i * 60}
+                        />
+                        <p className="mt-0.5 text-center text-xs font-medium text-ca-text tabular-nums">
+                          {fmtMoneyCompact(c.revenue)}
+                        </p>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </CardContent>
+            </Card>
+          </Section>
+        )}
 
-          <section className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-            {companies.map((c, i) => (
-              <Link
+        <Section title="Companies" description="Open a company for its own executive view">
+          <div className="grid gap-4 md:grid-cols-3">
+            {companies.map((c) => (
+              <Card
                 key={c.slug}
                 href={`/?company=${c.slug}&range=${range.preset}`}
-                className="fade-up group rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-lg shadow-black/10 overflow-hidden hover:border-indigo-500/50 hover:shadow-indigo-500/10 transition"
-                style={{ animationDelay: `${240 + i * 60}ms` }}
               >
-                <div className="relative px-5 pt-5 pb-4">
-                  <div
-                    className="absolute -top-10 -right-10 size-24 rounded-full opacity-30 blur-xl"
-                    style={{
-                      backgroundColor:
-                        COMPANY_HEX[c.slug] ?? COMPANY_HEX.default,
-                    }}
-                  />
-                  <span
-                    className="absolute left-0 top-3 bottom-3 w-1 rounded-r"
-                    style={{
-                      backgroundColor:
-                        COMPANY_HEX[c.slug] ?? COMPANY_HEX.default,
-                    }}
-                  />
-                  <div className="flex items-center justify-between relative">
-                    <h3 className="text-base font-semibold text-[var(--text)]">
-                      {c.name}
-                    </h3>
-                    <span className="text-xs text-[var(--text-muted)] group-hover:text-indigo-400 transition">
-                      Open →
-                    </span>
-                  </div>
-                  <div className="mt-4 grid grid-cols-2 gap-y-3 gap-x-4 relative">
-                    <div>
-                      <div className="text-[11px] uppercase tracking-wider text-[var(--text-muted)]">
-                        Revenue
-                      </div>
-                      <div className="text-lg font-semibold tabular-nums text-[var(--text)]">
-                        {fmtMoney(c.revenue)}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-[11px] uppercase tracking-wider text-[var(--text-muted)]">
-                        Invoices
-                      </div>
-                      <div className="text-lg font-semibold tabular-nums text-[var(--text)]">
-                        {fmtInt(c.invoices)}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-[11px] uppercase tracking-wider text-[var(--text-muted)]">
-                        Avg invoice
-                      </div>
-                      <div className="text-sm font-medium tabular-nums text-[var(--text-muted)]">
-                        {fmtMoney(c.avgInvoice)}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-[11px] uppercase tracking-wider text-[var(--text-muted)]">
-                        Outstanding AR
-                      </div>
-                      <div className="text-sm font-medium tabular-nums text-[var(--text-muted)]">
-                        {fmtMoney(c.outstandingAr)}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </Link>
+                <CardHeader
+                  actions={
+                    <ArrowUpRight aria-hidden className="size-4 text-ca-muted" />
+                  }
+                >
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <span
+                      aria-hidden
+                      className="size-2.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: slotColor(companySlot(c.slug)) }}
+                    />
+                    {c.name}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
+                    <Metric label="Revenue" value={fmtMoney(c.revenue)} strong />
+                    <Metric label="Invoices" value={fmtInt(c.invoices)} strong />
+                    <Metric label="Avg invoice" value={fmtMoney(c.avgInvoice)} />
+                    <Metric label="Outstanding AR" value={fmtMoney(c.outstandingAr)} />
+                  </dl>
+                </CardContent>
+              </Card>
             ))}
-          </section>
-        </div>
-      </main>
+          </div>
+        </Section>
+      </Page>
     );
   }
 
   // Specific company → single-company executive view.
   const company = await resolveCompany(sp.company);
   if (!company) {
+    // The header keeps the filters, so another company (or all) can be picked.
     return (
-      <main className="px-6 py-10 text-[var(--text-muted)]">
-        Unknown company. <Link href="/" className="text-indigo-400">Back to overview.</Link>
-      </main>
+      <Page>
+        <ReportHeader icon={LayoutDashboard} title="Executive overview" />
+        <Card>
+          <EmptyState
+            titleAs="h2"
+            icon={SearchX}
+            title="Unknown company"
+            description="That company isn't in the dashboard."
+            action={
+              <GlassButton asChild variant="soft" size="sm" className="ca-control-sm">
+                <Link href="/">
+                  <ArrowLeft aria-hidden className="size-4" />
+                  Back to overview
+                </Link>
+              </GlassButton>
+            }
+          />
+        </Card>
+      </Page>
     );
   }
 
@@ -283,112 +317,179 @@ export default async function ExecutivePage({
     getTopAccounts(company.id, range, 10),
   ]);
 
-  return (
-    <main className="px-6 py-6">
-      <div className="mx-auto max-w-7xl">
-        <PageHeader
-          title={`${company.name} · Executive`}
-          subtitle={`${range.label} · ${range.from
-            .toISOString()
-            .slice(0, 10)} → ${range.to.toISOString().slice(0, 10)}`}
-        />
+  const topRevenue = Math.max(1, ...top.map((row) => row.revenue));
 
-        <section className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-          <KpiCard
+  return (
+    <Page>
+      <ReportHeader
+        icon={LayoutDashboard}
+        eyebrow={company.name}
+        title="Executive overview"
+        description={
+          <>
+            {range.label} ·{" "}
+            {/* The range's UTC calendar days, as date-only strings so formatDate keeps each day. */}
+            <span className="tabular-nums">
+              {formatDate(range.from.toISOString().slice(0, 10))} →{" "}
+              {formatDate(range.to.toISOString().slice(0, 10))}
+            </span>
+          </>
+        }
+      />
+
+      <Section title="Overview">
+        <div className={KPI_GRID_5}>
+          <StatCard
+            className="ca-enter"
+            style={enterDelay(0)}
             label="Revenue"
             value={fmtMoney(kpis.revenue)}
-            hint={pctDelta(kpis.revenue, kpis.revenuePrev)}
-            tone="emerald"
-            delay={0}
+            delta={toStatDelta(pctDelta(kpis.revenue, kpis.revenuePrev))}
+            hint={kpis.revenuePrev === 0 ? undefined : "vs prior period"}
+            icon={DollarSign}
+            sparkline={
+              <Sparkline
+                data={monthly.map((m) => m.revenue)}
+                // Colour follows the entity: the company's own series colour.
+                color={slotColor(companySlot(company.slug))}
+                className="h-full"
+                label="Revenue, last 12 months"
+              />
+            }
           />
-          <KpiCard
+          <StatCard
+            className="ca-enter"
+            style={enterDelay(1)}
             label="Invoices"
             value={fmtInt(kpis.invoices)}
-            tone="indigo"
-            delay={60}
+            icon={Receipt}
           />
-          <KpiCard
+          <StatCard
+            className="ca-enter"
+            style={enterDelay(2)}
             label="Avg invoice"
             value={fmtMoney(kpis.avgInvoice)}
-            tone="sky"
-            delay={120}
+            icon={DollarSign}
           />
-          <KpiCard
+          <StatCard
+            className="ca-enter"
+            style={enterDelay(3)}
             label="New customers"
             value={fmtInt(kpis.newCustomers)}
-            tone="violet"
-            delay={180}
+            icon={UserPlus}
           />
-          <KpiCard
+          <StatCard
+            className="ca-enter"
+            style={enterDelay(4)}
             label="Outstanding AR"
             value={fmtMoney(kpis.outstandingAr)}
-            tone="rose"
-            delay={240}
+            icon={Wallet}
           />
-        </section>
+        </div>
+      </Section>
 
-        <Section
-          title="Revenue by month"
-          subtitle="Last 12 months · invoiced"
-        >
+      <Card variant="solid">
+        <CardHeader>
+          <CardTitle as="h2">Revenue by month</CardTitle>
+          <CardDescription>Last 12 months · invoiced</CardDescription>
+        </CardHeader>
+        <CardContent>
           <AreaChart
             ariaLabel="Monthly revenue"
             format={fmtMoneyCompact}
+            valueFormat={fmtMoney}
+            tableLabel={`Monthly revenue, ${company.name}`}
             series={[
               {
                 label: company.name,
-                tone:
-                  COMPANY_TONES[company.slug] ?? ("indigo" as Tone),
+                slot: companySlot(company.slug),
                 points: monthly.map((m) => ({ x: m.month.slice(5), y: m.revenue })),
               },
             ]}
           />
-        </Section>
+        </CardContent>
+      </Card>
 
-        <Section
-          title="Top accounts"
-          subtitle={`By invoiced revenue · ${range.label.toLowerCase()}`}
-          padded={false}
-        >
-          <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[480px]">
-            <thead className="text-left text-[11px] uppercase tracking-wider text-[var(--text-muted)] bg-white/[0.02]">
-              <tr>
-                <th className="px-6 py-2.5 font-medium">Account</th>
-                <th className="px-6 py-2.5 font-medium text-right">Invoices</th>
-                <th className="px-6 py-2.5 font-medium text-right">Revenue</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--border)]">
+      <Card variant="solid" className="overflow-hidden pb-0">
+        <CardHeader>
+          <CardTitle as="h2">Top accounts</CardTitle>
+          <CardDescription>
+            By invoiced revenue · {range.label.toLowerCase()}
+          </CardDescription>
+        </CardHeader>
+        <CardContent flush>
+          <Table surface="none" label="Top accounts">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Account</TableHead>
+                <TableHead numeric>Invoices</TableHead>
+                <TableHead numeric>Revenue</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {top.length === 0 ? (
-                <tr>
-                  <td colSpan={3} className="px-6 py-6 text-[var(--text-muted)] text-center">
-                    No invoices in this range.
-                  </td>
-                </tr>
+                <TableEmpty
+                  colSpan={3}
+                  icon={Inbox}
+                  title="No invoices in this range."
+                />
               ) : (
-                top.map((row) => (
-                  <tr
-                    key={row.smId}
-                    className="hover:bg-white/[0.02] transition-colors"
-                  >
-                    <td className="px-6 py-2.5 text-[var(--text)] truncate max-w-md">
-                      {row.accountName ?? "—"}
-                    </td>
-                    <td className="px-6 py-2.5 text-right text-[var(--text-muted)] tabular-nums">
+                top.map((row, i) => (
+                  <TableRow key={row.smId}>
+                    <TableCell className="max-w-[14rem] sm:max-w-md">
+                      <span className="flex min-w-0 items-center gap-3">
+                        <span className="w-5 shrink-0 text-right text-xs text-ca-muted tabular-nums">
+                          {i + 1}
+                        </span>
+                        <span className="truncate font-medium">
+                          {row.accountName ?? "—"}
+                        </span>
+                      </span>
+                    </TableCell>
+                    <TableCell numeric muted>
                       {fmtInt(row.invoices)}
-                    </td>
-                    <td className="px-6 py-2.5 text-right font-medium text-[var(--text)] tabular-nums">
-                      {fmtMoney(row.revenue)}
-                    </td>
-                  </tr>
+                    </TableCell>
+                    <TableCell numeric className="font-medium">
+                      <span className="inline-flex items-center gap-3">
+                        <MiniBar
+                          value={row.revenue / topRevenue}
+                          className="hidden sm:inline-block"
+                        />
+                        {fmtMoney(row.revenue)}
+                      </span>
+                    </TableCell>
+                  </TableRow>
                 ))
               )}
-            </tbody>
-          </table>
-          </div>
-        </Section>
-      </div>
-    </main>
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </Page>
+  );
+}
+
+function Metric({
+  label,
+  value,
+  strong = false,
+}: {
+  label: string;
+  value: string;
+  strong?: boolean;
+}) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-xs text-ca-muted">{label}</dt>
+      <dd
+        className={
+          strong
+            ? "mt-0.5 truncate text-lg font-semibold tracking-tight text-ca-text tabular-nums"
+            : "mt-0.5 truncate text-sm font-medium text-ca-muted tabular-nums"
+        }
+      >
+        {value}
+      </dd>
+    </div>
   );
 }

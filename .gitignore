@@ -48,3 +48,6 @@ items-*.log
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# keep the variable-name template in git
+!.env.example

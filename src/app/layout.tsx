@@ -1,38 +1,37 @@
 import type { Metadata } from "next";
-import { ClerkProvider } from "@clerk/nextjs";
+import { ThemedClerkProvider } from "@1ca/ui/clerk";
+import { KitProviders } from "@1ca/ui/providers";
+import { ThemeScript } from "@1ca/ui/theme";
+import { getThemeChoice, htmlThemeProps } from "@1ca/ui/theme/server";
+import { geist } from "./fonts";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "ServiceMonster Dashboard",
+  // The registry name (@1ca/ui/config/apps); each page sets its own title.
+  title: {
+    default: "Sales Dashboard · 1CleanAir",
+    template: "%s · Sales Dashboard · 1CleanAir",
+  },
   description:
     "Cross-brand analytics for 1CleanAir, Home Depot, and Enviro Duct",
 };
 
-// Mirrors the CSS vars in globals.css so Clerk's UI matches the dark theme.
-const clerkAppearance = {
-  variables: {
-    colorPrimary: "#6366f1",
-    colorPrimaryForeground: "#ffffff",
-    colorBackground: "#131932",
-    colorForeground: "#e6e8f2",
-    colorMutedForeground: "#8b90b3",
-    colorInput: "#1a2142",
-    colorInputForeground: "#e6e8f2",
-    colorNeutral: "#e6e8f2",
-    colorBorder: "#1f2747",
-    borderRadius: "0.5rem",
-  },
-};
-
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const theme = await getThemeChoice();
+
   return (
-    <html lang="en" className="dark h-full antialiased">
-      <body className="min-h-full flex flex-col">
-        <ClerkProvider appearance={clerkAppearance}>{children}</ClerkProvider>
+    <html lang="en" {...htmlThemeProps(theme, { className: geist.variable })}>
+      <head>
+        <ThemeScript />
+      </head>
+      <body>
+        <ThemedClerkProvider initialTheme={theme}>
+          <KitProviders initialTheme={theme}>{children}</KitProviders>
+        </ThemedClerkProvider>
       </body>
     </html>
   );

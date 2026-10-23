@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // kit/ is the vendored 1CA Glass kit (master copy in the hub repo): not linted per app.
+    "kit/**",
   ]),
 ]);
 

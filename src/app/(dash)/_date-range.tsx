@@ -1,29 +1,55 @@
 "use client";
 
+import { CalendarRange } from "lucide-react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import {
+  GlassSelect,
+  GlassSelectContent,
+  GlassSelectItem,
+  GlassSelectTrigger,
+  GlassSelectValue,
+} from "@1ca/ui/glassyui/glass-select";
 import { PRESETS } from "@/lib/queries/range";
 
 export function DateRangeSelect({ defaultValue }: { defaultValue: string }) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
-  const current = params.get("range") ?? defaultValue;
+  const range = params.get("range");
+  // An unknown ?range= shows the default the server falls back to, not a blank trigger.
+  const current =
+    range !== null && PRESETS.some((p) => p.value === range) ? range : defaultValue;
 
   return (
-    <select
+    <GlassSelect
       value={current}
-      onChange={(e) => {
+      onValueChange={(value) => {
         const next = new URLSearchParams(params);
-        next.set("range", e.target.value);
+        next.set("range", value);
         router.replace(`${pathname}?${next.toString()}`);
       }}
-      className="rounded-md border border-[var(--border)] bg-[var(--surface)] text-sm pl-3 pr-9 py-1.5 text-[var(--text)] cursor-pointer hover:border-indigo-500/50 transition appearance-none bg-no-repeat bg-[right_0.5rem_center] bg-[length:1rem_1rem] bg-[image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2216%22 height=%2216%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%238b90b3%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><polyline points=%226 9 12 15 18 9%22/></svg>')]"
     >
-      {PRESETS.map((p) => (
-        <option key={p.value} value={p.value}>
-          {p.label}
-        </option>
-      ))}
-    </select>
+      <GlassSelectTrigger
+        aria-label="Date range"
+        className="ca-control-sm w-full sm:w-[12.5rem]"
+      >
+        <span className="flex min-w-0 items-center gap-2">
+          <CalendarRange
+            aria-hidden
+            className="hidden size-4 shrink-0 text-ca-muted sm:block"
+          />
+          <span className="truncate">
+            <GlassSelectValue />
+          </span>
+        </span>
+      </GlassSelectTrigger>
+      <GlassSelectContent>
+        {PRESETS.map((p) => (
+          <GlassSelectItem key={p.value} value={p.value}>
+            {p.label}
+          </GlassSelectItem>
+        ))}
+      </GlassSelectContent>
+    </GlassSelect>
   );
 }

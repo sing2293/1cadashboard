@@ -1,15 +1,42 @@
+import {
+  Briefcase,
+  ChartLine,
+  FileText,
+  Tag,
+  Target,
+  UserPlus,
+  Users,
+} from "lucide-react";
+import type { Metadata } from "next";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@1ca/ui/components/card";
+import { MiniBar } from "@1ca/ui/components/charts";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableEmpty,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@1ca/ui/components/data-table";
+import { Page } from "@1ca/ui/components/page";
+import { Section } from "@1ca/ui/components/section";
+import { StatCard } from "@1ca/ui/components/stat-card";
 import { resolveCompany } from "@/lib/queries/company";
 import { parseRange } from "@/lib/queries/range";
 import { getLeadSources, getSalesKpis } from "@/lib/queries/sales";
-import {
-  fmtInt,
-  fmtMoney,
-  KpiCard,
-  Section,
-  PageHeader,
-} from "../_components";
+import { enterDelay, fmtInt, fmtMoney } from "../_components";
+import { NoCompanyPage, ReportHeader } from "../_report-header";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = { title: "Sales" };
 
 export default async function SalesPage({
   searchParams,
@@ -18,7 +45,7 @@ export default async function SalesPage({
 }) {
   const sp = await searchParams;
   const company = await resolveCompany(sp.company);
-  if (!company) return <main className="p-10">No company seeded.</main>;
+  if (!company) return <NoCompanyPage icon={ChartLine} title="Sales" />;
 
   const range = parseRange(sp.range);
   const [kpis, sources] = await Promise.all([
@@ -26,93 +53,106 @@ export default async function SalesPage({
     getLeadSources(company.id, range.days),
   ]);
 
-  return (
-    <main className="px-6 py-8">
-      <div className="mx-auto max-w-7xl">
-        <PageHeader
-          title={`${company.name} · Sales`}
-          subtitle={`Pipeline + new accounts · ${range.label.toLowerCase()}`}
-        />
+  const topCount = Math.max(1, ...sources.map((row) => row.count));
 
-        <section className="mt-8 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-          <KpiCard
+  return (
+    <Page>
+      <ReportHeader
+        icon={ChartLine}
+        eyebrow={company.name}
+        title="Sales"
+        description={`Pipeline + new accounts · ${range.label.toLowerCase()}`}
+      />
+
+      <Section title="Overview">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          <StatCard
+            className="ca-enter"
+            style={enterDelay(0)}
             label="New leads"
             value={fmtInt(kpis.newLeads)}
-            tone="violet"
-            delay={0}
+            icon={Users}
           />
-          <KpiCard
+          <StatCard
+            className="ca-enter"
+            style={enterDelay(1)}
             label="New prospects"
             value={fmtInt(kpis.newProspects)}
-            tone="indigo"
-            delay={60}
+            icon={Target}
           />
-          <KpiCard
+          <StatCard
+            className="ca-enter"
+            style={enterDelay(2)}
             label="New customers"
             value={fmtInt(kpis.newCustomers)}
-            tone="emerald"
-            delay={120}
+            icon={UserPlus}
           />
-          <KpiCard
+          <StatCard
+            className="ca-enter"
+            style={enterDelay(3)}
             label="Estimates issued"
             value={fmtInt(kpis.estimateCount)}
-            tone="sky"
-            delay={180}
+            icon={FileText}
           />
-          <KpiCard
+          <StatCard
+            className="ca-enter"
+            style={enterDelay(4)}
             label="Pipeline value"
             value={fmtMoney(kpis.estimateValueOutstanding)}
-            tone="amber"
-            delay={240}
+            hint="Outstanding estimates"
+            icon={Briefcase}
           />
-        </section>
+        </div>
+      </Section>
 
-        <Section
-          title="New accounts by lead source"
-          subtitle={range.label}
-          padded={false}
-        >
-          <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[520px]">
-            <thead className="text-left text-[11px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400 bg-zinc-50/60 dark:bg-zinc-900/40">
-              <tr>
-                <th className="px-6 py-2.5 font-medium">Source</th>
-                <th className="px-6 py-2.5 font-medium text-right">New accounts</th>
-                <th className="px-6 py-2.5 font-medium text-right">
-                  Lifetime invoice revenue
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/60">
+      <Card variant="solid" className="overflow-hidden pb-0">
+        <CardHeader>
+          <CardTitle as="h2">New accounts by lead source</CardTitle>
+          <CardDescription>{range.label}</CardDescription>
+        </CardHeader>
+        <CardContent flush>
+          <Table
+            surface="none"
+            label="New accounts by lead source"
+            className="min-w-[30rem]"
+          >
+            <TableHeader>
+              <TableRow>
+                <TableHead>Source</TableHead>
+                <TableHead numeric>New accounts</TableHead>
+                <TableHead numeric>Lifetime invoice revenue</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {sources.length === 0 ? (
-                <tr>
-                  <td colSpan={3} className="px-6 py-6 text-zinc-500 text-center">
-                    No new accounts in this range.
-                  </td>
-                </tr>
+                <TableEmpty
+                  colSpan={3}
+                  icon={Tag}
+                  title="No new accounts in this range."
+                />
               ) : (
                 sources.map((row) => (
-                  <tr
-                    key={row.source}
-                    className="hover:bg-zinc-50/60 dark:hover:bg-zinc-800/40 transition-colors"
-                  >
-                    <td className="px-6 py-2.5 text-zinc-900 dark:text-zinc-100">
-                      {row.source}
-                    </td>
-                    <td className="px-6 py-2.5 text-right tabular-nums">
-                      {fmtInt(row.count)}
-                    </td>
-                    <td className="px-6 py-2.5 text-right font-medium tabular-nums">
+                  <TableRow key={row.source}>
+                    <TableCell className="font-medium">{row.source}</TableCell>
+                    <TableCell numeric>
+                      <span className="inline-flex items-center gap-3">
+                        <MiniBar
+                          value={row.count / topCount}
+                          className="hidden sm:inline-block"
+                        />
+                        <span className="min-w-8">{fmtInt(row.count)}</span>
+                      </span>
+                    </TableCell>
+                    <TableCell numeric className="font-medium">
                       {fmtMoney(row.revenue)}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))
               )}
-            </tbody>
-          </table>
-          </div>
-        </Section>
-      </div>
-    </main>
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </Page>
   );
 }
