@@ -96,7 +96,8 @@ export async function syncPunches(
 }
 
 /**
- * Every name on a ServiceMonster job in the last 180 days becomes a Tech, keyed
+ * Every name on a ServiceMonster job, and every technician assigned to a
+ * ServiceTitan (HVAC) appointment, in the last 180 days becomes a Tech, keyed
  * by its folded name. A tech with no Mobile Punches employee yet is linked to
  * the one employee whose name folds the same; anything less certain waits for
  * someone to pick on the Tech pay page.
@@ -110,10 +111,20 @@ export async function refreshTechs(prisma: PrismaClient): Promise<{ techs: numbe
       AND COALESCE(a."smPayload"->>'techs', '') <> ''
     GROUP BY 1
   `;
+  const hvac = await prisma.$queryRaw<Array<{ techs: string; lastSeen: Date }>>`
+    SELECT COALESCE(e."smPayload"->>'name', concat_ws(' ', e."firstName", e."lastName")) AS techs,
+           MAX(a."scheduledStart") AS "lastSeen"
+    FROM appointment_techs t
+    JOIN appointments a ON a.id = t."appointmentId"
+    JOIN employees e ON e.id = t."employeeId"
+    JOIN companies c ON c.id = a."companyId" AND c.source = 'servicetitan'
+    WHERE a."scheduledStart" > now() - interval '180 days'
+    GROUP BY 1
+  `;
 
   // The newest spelling of each folded name wins.
   const seen = new Map<string, { name: string; lastSeen: Date }>();
-  for (const row of rows) {
+  for (const row of [...rows, ...hvac]) {
     for (const name of splitTechs(row.techs)) {
       const key = nameKey(name);
       const prev = seen.get(key);

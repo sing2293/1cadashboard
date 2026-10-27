@@ -1,14 +1,16 @@
 import { prisma } from "@/lib/db";
 import { addDays, dayToDate } from "@/lib/punches";
-import { nameKey, splitTechs } from "@/lib/tech-names";
+import { cleanName, nameKey, splitTechs } from "@/lib/tech-names";
 
 /**
- * A truck is a ServiceMonster route. For each truck and day:
+ * A truck is a ServiceMonster route, or for HVAC a ServiceTitan inventory
+ * truck (an appointment rides on the trucks of the technicians assigned to
+ * it). For each truck and day:
  * - sales: the booked value of its jobs (every job not cancelled), before
- *   tax. An order's subtotal is split evenly over its jobs, so a job spread
- *   over several visits isn't counted twice. Estimates and voided orders are
- *   not sales and count as 0.
- * - techs: everyone named on its jobs that day.
+ *   tax. An order's (ServiceTitan: a job's invoice) subtotal is split evenly
+ *   over its jobs, so work spread over several visits isn't counted twice.
+ *   Estimates and voided orders are not sales and count as 0.
+ * - techs: everyone on its jobs that day.
  * - pay: each tech's Mobile Punches hours for the day × the rate in force
  *   that day. A tech on two trucks in one day is split between them by their
  *   scheduled job hours on each.
@@ -56,14 +58,18 @@ export interface TruckSummary {
   issues: number;
 }
 
+/** One job (or the part of an HVAC appointment on one truck), whatever system it came from. */
 type JobRow = {
   companyId: number;
   routeId: string;
-  techs: string | null;
+  techNames: string[];
   day: string;
   hours: number;
   value: number;
 };
+
+/** HVAC appointments whose technicians have no truck in ServiceTitan. */
+const NO_TRUCK = "unassigned";
 
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
 
@@ -73,9 +79,62 @@ export async function getTruckDays(companyIds: number[], from: string, to: strin
   const start = dayToDate(from);
   const end = dayToDate(addDays(to, 1));
 
-  // ServiceMonster times are local wall-clock stored as UTC (see sm/time.ts),
-  // so the stored date is the local day.
-  const jobs = await prisma.$queryRaw<JobRow[]>`
+  const companies = await prisma.company.findMany({
+    where: { id: { in: companyIds } },
+    select: { id: true, name: true, source: true },
+  });
+  const stIds = companies.filter((c) => c.source === "servicetitan").map((c) => c.id);
+  const smIds = companies.filter((c) => c.source !== "servicetitan").map((c) => c.id);
+  const jobs = [...(await smJobs(smIds, start, end)), ...(await stJobs(stIds, start, end))];
+  if (jobs.length === 0) return [];
+
+  const routes = await prisma.route.findMany({
+    where: { companyId: { in: companyIds } },
+    select: { companyId: true, smId: true, name: true },
+  });
+  const routeName = new Map(routes.map((r) => [`${r.companyId}|${r.smId}`, r.name]));
+  const companyName = new Map(companies.map((c) => [c.id, c.name]));
+
+  // Each truck-day, with each tech's job hours on it; and each tech's job
+  // hours across all trucks that day, to split their worked hours by.
+  const trucks = new Map<string, TruckAcc>();
+  const dayHours = new Map<string, number>();
+  const dayJobs = new Map<string, number>();
+  for (const j of jobs) {
+    const key = `${j.day}|${j.companyId}|${j.routeId}`;
+    let acc = trucks.get(key);
+    if (!acc) {
+      acc = { day: j.day, companyId: j.companyId, routeId: j.routeId, jobs: 0, sales: 0, techs: new Map() };
+      trucks.set(key, acc);
+    }
+    acc.jobs += 1;
+    acc.sales += Number(j.value);
+    for (const name of j.techNames) {
+      const tk = nameKey(name);
+      const t = acc.techs.get(tk) ?? { name, jobHours: 0, jobs: 0 };
+      t.jobHours += Number(j.hours);
+      t.jobs += 1;
+      acc.techs.set(tk, t);
+      dayHours.set(`${j.day}|${tk}`, (dayHours.get(`${j.day}|${tk}`) ?? 0) + Number(j.hours));
+      dayJobs.set(`${j.day}|${tk}`, (dayJobs.get(`${j.day}|${tk}`) ?? 0) + 1);
+    }
+  }
+
+  return payTrucks(trucks, dayHours, dayJobs, start, end, (acc) => ({
+    companyName: companyName.get(acc.companyId) ?? "",
+    routeName:
+      acc.routeId === NO_TRUCK
+        ? "No truck assigned"
+        : (routeName.get(`${acc.companyId}|${acc.routeId}`) ?? "Unnamed route"),
+  }));
+}
+
+// ServiceMonster: each job names its route and its techs ("Name, Name").
+// Its times are local wall-clock stored as UTC (see sm/time.ts), so the
+// stored date is the local day.
+async function smJobs(companyIds: number[], start: Date, end: Date): Promise<JobRow[]> {
+  if (companyIds.length === 0) return [];
+  const rows = await prisma.$queryRaw<Array<Omit<JobRow, "techNames"> & { techs: string | null }>>`
     WITH day_jobs AS (
       SELECT a."companyId", a."smOrderId",
              a."smPayload"->>'routeID' AS "routeId",
@@ -104,42 +163,100 @@ export async function getTruckDays(companyIds: number[], from: string, to: strin
     LEFT JOIN orders o ON o."companyId" = j."companyId" AND o."smId" = j."smOrderId"
     LEFT JOIN order_jobs oj ON oj."companyId" = j."companyId" AND oj."smOrderId" = j."smOrderId"
   `;
-  if (jobs.length === 0) return [];
+  return rows.map(({ techs, ...row }) => ({ ...row, techNames: splitTechs(techs) }));
+}
 
-  const [routes, companies] = await Promise.all([
-    prisma.route.findMany({ where: { companyId: { in: companyIds } }, select: { companyId: true, smId: true, name: true } }),
-    prisma.company.findMany({ where: { id: { in: companyIds } }, select: { id: true, name: true } }),
-  ]);
-  const routeName = new Map(routes.map((r) => [`${r.companyId}|${r.smId}`, r.name]));
-  const companyName = new Map(companies.map((c) => [c.id, c.name]));
+// ServiceTitan (HVAC): an appointment's technicians come from its assignments,
+// its truck from each technician's inventory truck, its value from the job's
+// invoices, split over the job's appointments. An appointment whose techs sit
+// on two trucks is split between them. ServiceTitan times are real UTC, so the
+// day is taken in Toronto time.
+async function stJobs(companyIds: number[], start: Date, end: Date): Promise<JobRow[]> {
+  if (companyIds.length === 0) return [];
+  const rows = await prisma.$queryRaw<
+    Array<{ companyId: number; day: string; hours: number; value: number; techIds: string[]; techNames: string[] }>
+  >`
+    WITH day_appts AS (
+      SELECT a.id, a."companyId", a."smOrderId" AS "jobId",
+             to_char(a."scheduledStart" AT TIME ZONE 'UTC' AT TIME ZONE 'America/Toronto', 'YYYY-MM-DD') AS day,
+             COALESCE(a."estimatedHours", 0)::float AS hours
+      FROM appointments a
+      WHERE a."companyId" = ANY(${companyIds}::int[])
+        AND (a."scheduledStart" AT TIME ZONE 'UTC' AT TIME ZONE 'America/Toronto') >= ${start}
+        AND (a."scheduledStart" AT TIME ZONE 'UTC' AT TIME ZONE 'America/Toronto') < ${end}
+        AND a.status IS DISTINCT FROM 'Cancelled'
+    ),
+    day_job_ids AS (SELECT DISTINCT "companyId", "jobId" FROM day_appts),
+    job_appts AS (
+      SELECT a."companyId", a."smOrderId" AS "jobId", COUNT(*)::int AS n
+      FROM appointments a
+      JOIN day_job_ids d ON d."companyId" = a."companyId" AND d."jobId" = a."smOrderId"
+      WHERE a.status IS DISTINCT FROM 'Cancelled'
+      GROUP BY 1, 2
+    ),
+    job_value AS (
+      SELECT o."companyId", o."smPayload"->'job'->>'id' AS "jobId", SUM(COALESCE(o.subtotal, 0))::float AS value
+      FROM orders o
+      JOIN day_job_ids d ON d."companyId" = o."companyId" AND d."jobId" = o."smPayload"->'job'->>'id'
+      WHERE o."orderType" IN ('Invoice', 'Work Order')
+      GROUP BY 1, 2
+    )
+    SELECT d."companyId", d.day, d.hours,
+           COALESCE(v.value, 0) / GREATEST(n.n, 1) AS value,
+           COALESCE(array_agg(e."smId" ORDER BY e."smId") FILTER (WHERE e.id IS NOT NULL), '{}') AS "techIds",
+           COALESCE(array_agg(COALESCE(e."smPayload"->>'name', concat_ws(' ', e."firstName", e."lastName")) ORDER BY e."smId")
+                    FILTER (WHERE e.id IS NOT NULL), '{}') AS "techNames"
+    FROM day_appts d
+    LEFT JOIN job_appts n ON n."companyId" = d."companyId" AND n."jobId" = d."jobId"
+    LEFT JOIN job_value v ON v."companyId" = d."companyId" AND v."jobId" = d."jobId"
+    LEFT JOIN appointment_techs t ON t."appointmentId" = d.id
+    LEFT JOIN employees e ON e.id = t."employeeId"
+    GROUP BY d.id, d."companyId", d.day, d.hours, v.value, n.n
+  `;
 
-  // Each truck-day, with each tech's job hours on it; and each tech's job
-  // hours across all trucks that day, to split their worked hours by.
-  type TechOnTruck = { name: string; jobHours: number; jobs: number };
-  type Acc = { day: string; companyId: number; routeId: string; jobs: number; sales: number; techs: Map<string, TechOnTruck> };
-  const trucks = new Map<string, Acc>();
-  const dayHours = new Map<string, number>();
-  const dayJobs = new Map<string, number>();
-  for (const j of jobs) {
-    const key = `${j.day}|${j.companyId}|${j.routeId}`;
-    let acc = trucks.get(key);
-    if (!acc) {
-      acc = { day: j.day, companyId: j.companyId, routeId: j.routeId, jobs: 0, sales: 0, techs: new Map() };
-      trucks.set(key, acc);
-    }
-    acc.jobs += 1;
-    acc.sales += Number(j.value);
-    for (const name of splitTechs(j.techs)) {
-      const tk = nameKey(name);
-      const t = acc.techs.get(tk) ?? { name, jobHours: 0, jobs: 0 };
-      t.jobHours += Number(j.hours);
-      t.jobs += 1;
-      acc.techs.set(tk, t);
-      dayHours.set(`${j.day}|${tk}`, (dayHours.get(`${j.day}|${tk}`) ?? 0) + Number(j.hours));
-      dayJobs.set(`${j.day}|${tk}`, (dayJobs.get(`${j.day}|${tk}`) ?? 0) + 1);
+  // Each technician's truck: the first active one that lists them.
+  const trucks = await prisma.route.findMany({
+    where: { companyId: { in: companyIds }, isActive: true },
+    select: { companyId: true, smId: true, smPayload: true },
+  });
+  const truckOf = new Map<string, string>();
+  for (const t of trucks) {
+    for (const id of (t.smPayload as { technicianIds?: number[] }).technicianIds ?? []) {
+      if (!truckOf.has(`${t.companyId}|${id}`)) truckOf.set(`${t.companyId}|${id}`, t.smId);
     }
   }
 
+  return rows.flatMap((r) => {
+    const byTruck = new Map<string, string[]>();
+    r.techIds.forEach((id, i) => {
+      const truck = truckOf.get(`${r.companyId}|${id}`) ?? NO_TRUCK;
+      byTruck.set(truck, [...(byTruck.get(truck) ?? []), cleanName(r.techNames[i] ?? "")]);
+    });
+    if (byTruck.size === 0) byTruck.set(NO_TRUCK, []);
+    return [...byTruck].map(([routeId, techNames]) => ({
+      companyId: r.companyId,
+      routeId,
+      techNames: techNames.filter(Boolean),
+      day: r.day,
+      hours: Number(r.hours),
+      value: Number(r.value) / byTruck.size,
+    }));
+  });
+}
+
+type TechOnTruck = { name: string; jobHours: number; jobs: number };
+type TruckAcc = { day: string; companyId: number; routeId: string; jobs: number; sales: number; techs: Map<string, TechOnTruck> };
+
+// Each tech's Mobile Punches hours for the day × their rate, split across the
+// trucks they were on by their job hours on each.
+async function payTrucks(
+  trucks: Map<string, TruckAcc>,
+  dayHours: Map<string, number>,
+  dayJobs: Map<string, number>,
+  start: Date,
+  end: Date,
+  label: (acc: TruckAcc) => { companyName: string; routeName: string },
+): Promise<TruckDay[]> {
   const keys = [...new Set([...trucks.values()].flatMap((t) => [...t.techs.keys()]))];
   const techs = await prisma.tech.findMany({
     where: { nameKey: { in: keys } },
@@ -176,9 +293,8 @@ export async function getTruckDays(companyIds: number[], from: string, to: strin
       key,
       day: acc.day,
       companyId: acc.companyId,
-      companyName: companyName.get(acc.companyId) ?? "",
+      ...label(acc),
       routeId: acc.routeId,
-      routeName: routeName.get(`${acc.companyId}|${acc.routeId}`) ?? "Unnamed route",
       jobs: acc.jobs,
       sales: acc.sales,
       hours: onTruck.reduce((sum, t) => sum + (t.hours ?? 0), 0),

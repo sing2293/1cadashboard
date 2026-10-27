@@ -22,7 +22,7 @@ export default async function TechPayPage() {
   const weekStart = dayToDate(addDays(today, -6));
 
   const [techs, employees, weekHours, lastSync] = await Promise.all([
-    // Techs on a ServiceMonster job in the last 120 days.
+    // Techs on a ServiceMonster job or HVAC appointment in the last 120 days.
     prisma.tech.findMany({
       where: { lastSeenOn: { gte: dayToDate(addDays(today, -120)) } },
       include: { rates: { orderBy: { effectiveFrom: "desc" } } },
@@ -75,8 +75,8 @@ export default async function TechPayPage() {
         title="Techs"
         description={
           synced
-            ? `Everyone named on a ServiceMonster job in the last 120 days. Hours last came in from Mobile Punches ${formatRelative(synced)}.`
-            : "Everyone named on a ServiceMonster job in the last 120 days. No hours have come in from Mobile Punches yet."
+            ? `Everyone on a ServiceMonster job or HVAC appointment in the last 120 days. Hours last came in from Mobile Punches ${formatRelative(synced)}.`
+            : "Everyone on a ServiceMonster job or HVAC appointment in the last 120 days. No hours have come in from Mobile Punches yet."
         }
       >
         <div className="grid gap-4 sm:grid-cols-3">

@@ -7,6 +7,9 @@ import { canSeePay } from "@/lib/hub-access";
 import { dayToDate, refreshTechs, syncPunches } from "@/lib/punches";
 import { runIncrementalSync } from "@/lib/sync/runner";
 import { routesSyncer } from "@/lib/sync/resources/routes";
+import { stAssignmentsSyncer } from "@/lib/sync/servicetitan/assignments";
+import { stTechniciansSyncer } from "@/lib/sync/servicetitan/technicians";
+import { stTrucksSyncer } from "@/lib/sync/servicetitan/trucks";
 
 export type ActionResult = { ok: true; message?: string } | { ok: false; error: string };
 
@@ -62,7 +65,8 @@ export async function linkPunches(techId: number, employeeId: string | null): Pr
 
 /**
  * What the 4-hourly sync does for this page, on demand: ServiceMonster's route
- * names, Mobile Punches' employees and recent hours, and the techs on recent jobs.
+ * names; ServiceTitan's technicians, trucks and appointment assignments (HVAC);
+ * Mobile Punches' employees and recent hours; and the techs on recent jobs.
  */
 export async function refreshFromSources(): Promise<ActionResult> {
   if (!(await payUser())) return DENIED;
@@ -88,6 +92,18 @@ export async function refreshFromSources(): Promise<ActionResult> {
       routes += r.recordsUpserted;
     }
     return `${routes} trucks`;
+  });
+  await step("ServiceTitan techs and trucks", async () => {
+    const companies = await prisma.company.findMany({ where: { isActive: true, source: "servicetitan" } });
+    // A first run reaches back as far as the Trucks page needs, not two years.
+    const initialCursorIfEmpty = new Date(Date.now() - 120 * 86_400_000);
+    let assigned = 0;
+    for (const company of companies) {
+      await runIncrementalSync(prisma, company, stTechniciansSyncer, { initialCursorIfEmpty });
+      await runIncrementalSync(prisma, company, stTrucksSyncer, { initialCursorIfEmpty });
+      assigned += (await runIncrementalSync(prisma, company, stAssignmentsSyncer, { initialCursorIfEmpty })).recordsUpserted;
+    }
+    return `${assigned} HVAC assignments`;
   });
   await step("Mobile Punches hours", async () => `${(await syncPunches(prisma)).shifts} shifts`);
   await step("Techs on recent jobs", async () => {

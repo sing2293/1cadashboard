@@ -46,9 +46,9 @@ export default async function TrucksPage({
   const today = torontoToday();
   const day = /^\d{4}-\d{2}-\d{2}$/.test(sp.day ?? "") ? (sp.day as string) : today;
 
-  // Trucks are ServiceMonster routes; HVAC runs on ServiceTitan and has none.
+  // ServiceMonster routes, and ServiceTitan's trucks for HVAC.
   const companies = await prisma.company.findMany({
-    where: { isActive: true, source: "servicemonster", ...(sp.company ? { slug: sp.company } : {}) },
+    where: { isActive: true, ...(sp.company ? { slug: sp.company } : {}) },
     select: { id: true },
   });
   const days = await getTruckDays(
@@ -81,9 +81,7 @@ export default async function TrucksPage({
       {companies.length === 0 ? (
         <Card>
           <CardContent>
-            <p className="text-sm text-ca-muted">
-              Trucks come from ServiceMonster routes, and this company runs on ServiceTitan. Pick another company.
-            </p>
+            <p className="text-sm text-ca-muted">No company matches this link. Pick one from the company filter.</p>
           </CardContent>
         </Card>
       ) : (
