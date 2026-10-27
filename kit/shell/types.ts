@@ -32,7 +32,7 @@ export interface NavItem {
 }
 
 export interface AppShellProps {
-  /** This app's id in the registry: "hub", "sales", "calls", "uploader" or "punches". */
+  /** This app's id in the registry: "hub", "sales", "pipedrive", "calls", "uploader" or "punches". */
   appId: string;
   /** The sidebar's links, top to bottom. */
   nav: NavItem[];

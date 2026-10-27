@@ -8,6 +8,7 @@
 export const APP_IDS = [
   "hub",
   "sales",
+  "pipedrive",
   "calls",
   "collections",
   "uploader",
