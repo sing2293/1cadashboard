@@ -27,6 +27,8 @@ export const ADMIN_ROLE = "admin";
 export const PERMS = {
   /** Sales: run data syncs (the Sync page and its API). */
   salesSync: "sales:sync",
+  /** Sales: tech pay rates and each truck's sales after pay (Trucks, Tech pay). */
+  salesPay: "sales:pay",
   /** Lead Attribution: send the sales and FB reports to n8n by hand. */
   pipedriveReports: "pipedrive:reports",
   /** Punches: create and revoke export API keys. */

@@ -2,8 +2,8 @@
 scripts/sync-kit.mjs overwrites this folder. Rewritten by every port and sync.
 
 source: dashboard-1cleanair (hub repo) kit/
-commit: 329929e2f14f1ea5996a120054b7addd13b32156
+commit: 097c7c8c9100f466bc46e86995a119c413a402c3
 branch: glass
-date: 2026-10-27T14:35:38.612Z
-content: sha256:ef7061c8a83b7ed8c6ee9f9d3a060f03c9982f2761d97c466058d00d2319e7d4
+date: 2026-10-27T14:59:15.333Z
+content: sha256:564e1d7bbc949430aa0f948f325df80c315e5d56d48e743d1377705e5e9210f3
 files: 103
