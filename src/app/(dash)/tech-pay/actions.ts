@@ -66,19 +66,36 @@ export async function linkPunches(techId: number, employeeId: string | null): Pr
  */
 export async function refreshFromSources(): Promise<ActionResult> {
   if (!(await payUser())) return DENIED;
-  try {
-    const companies = await prisma.company.findMany({ where: { isActive: true, source: "servicemonster" } });
-    for (const company of companies) {
-      await runIncrementalSync(prisma, company, routesSyncer, { initialCursorIfEmpty: new Date(0) });
+
+  // Each step runs on its own, so one source being down doesn't hold up the others.
+  const done: string[] = [];
+  const failed: string[] = [];
+  const step = async (label: string, run: () => Promise<string>) => {
+    try {
+      done.push(await run());
+    } catch (e) {
+      // API errors can carry a whole stack trace; the first line says enough.
+      const message = e instanceof Error ? e.message.split(/[{\n]/)[0].trim() : "it didn’t finish";
+      failed.push(`${label}: ${message.slice(0, 160)}`);
     }
-    const punches = await syncPunches(prisma);
+  };
+
+  await step("ServiceMonster truck names", async () => {
+    const companies = await prisma.company.findMany({ where: { isActive: true, source: "servicemonster" } });
+    let routes = 0;
+    for (const company of companies) {
+      const r = await runIncrementalSync(prisma, company, routesSyncer, { initialCursorIfEmpty: new Date(0) });
+      routes += r.recordsUpserted;
+    }
+    return `${routes} trucks`;
+  });
+  await step("Mobile Punches hours", async () => `${(await syncPunches(prisma)).shifts} shifts`);
+  await step("Techs on recent jobs", async () => {
     const techs = await refreshTechs(prisma);
-    revalidate();
-    return {
-      ok: true,
-      message: `Updated: ${punches.shifts} shifts from Mobile Punches, ${techs.techs} techs${techs.linked ? `, ${techs.linked} newly linked` : ""}`,
-    };
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "The refresh didn’t finish." };
-  }
+    return `${techs.techs} techs${techs.linked ? `, ${techs.linked} newly linked` : ""}`;
+  });
+
+  revalidate();
+  if (failed.length === 0) return { ok: true, message: `Updated: ${done.join(", ")}` };
+  return { ok: false, error: `${failed.join(" · ")}${done.length ? ` (updated: ${done.join(", ")})` : ""}` };
 }

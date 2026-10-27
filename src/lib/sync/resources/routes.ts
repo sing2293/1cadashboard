@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import type { ResourceSyncer } from "../runner";
 import type { SmListResponse } from "@/lib/sm/client";
+import { formatSmCursor, parseSmTimestamp } from "@/lib/sm/time";
 import { concurrentMap } from "../persist";
 
 // A ServiceMonster route is a scheduling lane, in practice one truck and its
@@ -10,6 +11,7 @@ type RawRoute = {
   name?: string;
   active?: boolean;
   position?: number;
+  timeStamp?: string;
   [k: string]: unknown;
 };
 
@@ -17,22 +19,24 @@ export const routesSyncer: ResourceSyncer<RawRoute> = {
   resource: "routes",
   fullSync: true,
 
-  // A few dozen rows: walk by routeID, as employees do.
+  // A few dozen rows, all of them every run. Walk by timeStamp from the very
+  // start (not the run's cursor), so routes untouched for years still come.
+  // Filtering /routes by routeID makes ServiceMonster answer 500.
   fetchPages: async function* (sm) {
-    let cursor = "";
+    let cursor = new Date(Date.UTC(1900, 0, 1));
     while (true) {
       const r = await sm.get<SmListResponse<RawRoute>>("routes", {
         limit: 100,
-        orderBy: "routeID",
-        wField: "routeID",
+        orderBy: "timeStamp",
+        wField: "timeStamp",
         wOperator: "gt",
-        wValue: cursor,
+        wValue: formatSmCursor(cursor),
       });
       const rows = r.items ?? [];
       if (rows.length === 0) return;
       yield rows;
-      const last = rows[rows.length - 1].routeID;
-      if (last === cursor || rows.length < 100) return;
+      const last = parseSmTimestamp(rows[rows.length - 1].timeStamp);
+      if (rows.length < 100 || !last || last <= cursor) return;
       cursor = last;
     }
   },
