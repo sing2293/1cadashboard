@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   Phone,
   Receipt,
+  Target,
   Wallet,
   type LucideIcon,
 } from "lucide-react";
@@ -72,6 +73,15 @@ const DETAILS = {
     accent: ["#38bdf8", "#6366f1"],
     featured: true,
   },
+  pipedrive: {
+    name: "Lead Attribution",
+    shortName: "Leads",
+    description: "Leads, revenue and conversion by source across the Pipedrive accounts",
+    url: "https://leads.1cleanair.info",
+    kind: "shared",
+    icon: Target,
+    accent: ["#2dd4bf", "#84cc16"],
+  },
   calls: {
     name: "RingCentral Hub",
     shortName: "Calls",
@@ -125,7 +135,6 @@ const DETAILS = {
     kind: "external",
     icon: Receipt,
     accent: ["#f472b6", "#fb7185"],
-    underDev: true,
   },
 } satisfies Record<AppId, AppDetails>;
 

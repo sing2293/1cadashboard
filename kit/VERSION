@@ -1,9 +1,9 @@
 1CA Glass kit: a vendored COPY. Do not edit it here: the master is kit/ in the hub repo, and its
 scripts/sync-kit.mjs overwrites this folder. Rewritten by every port and sync.
 
-source: dashboard_1cleanair (workshop monorepo) packages/ui
-commit: c73602eea5dd832fd72fc8eaf7f2aa540498e3d5
-branch: redesign
-date: 2026-10-23T18:51:43.319Z
-content: sha256:30189a07dbe53de6b3cb572e6b34f4bef75a6f290bb42cfd483b0577d792b30a
+source: dashboard-1cleanair (hub repo) kit/
+commit: 329929e2f14f1ea5996a120054b7addd13b32156
+branch: glass
+date: 2026-10-27T14:35:38.612Z
+content: sha256:ef7061c8a83b7ed8c6ee9f9d3a060f03c9982f2761d97c466058d00d2319e7d4
 files: 103

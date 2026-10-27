@@ -8,7 +8,7 @@ the Clerk theme bridge. It ships TypeScript and CSS source; each app compiles it
 Every app repo carries its own copy of the kit in `kit/` (this folder) and imports it as
 `@1ca/ui/...` through tsconfig `paths`. The hub repo's `kit/` is the master: change the kit there
 only, then run `node scripts/sync-kit.mjs --apply` in the hub repo to copy it into the sales,
-calls, uploader and punches repos, and commit it in each. `kit/VERSION` records the hub commit a
+pipedrive, calls, uploader and punches repos, and commit it in each. `kit/VERSION` records the hub commit a
 copy came from. Never edit `kit/` in the other repos: the next sync overwrites it.
 
 | Import | What it gives you |
@@ -28,7 +28,7 @@ copy came from. Never edit `kit/` in the other repos: the next sync overwrites i
 
 ## How an app is put together
 
-All five apps (hub, sales, calls, uploader, punches) run on the kit: one shell, one sign-in
+All six apps (hub, sales, pipedrive, calls, uploader, punches) run on the kit: one shell, one sign-in
 place, one page anatomy, one set of controls and colours, in light and dark. A new app, or a new
 page, follows the same recipe.
 
@@ -95,7 +95,7 @@ page, follows the same recipe.
    ```
 
    - **Titles.** The title template uses the app's registry name (`@1ca/ui/config/apps`):
-     "Sales Dashboard", "RingCentral Hub", "Content Uploader", "Mobile Punches". The hub is
+     "Sales Dashboard", "Lead Attribution", "RingCentral Hub", "Content Uploader", "Mobile Punches". The hub is
      `{ default: '1CleanAir Hub', template: '%s · 1CleanAir Hub' }`. Every page exports its own
      `metadata.title`, the same words as its `PageHeader` title.
    - **Tab icon.** `src/app/icon.svg`: the app's registry accent gradient (`accent[0]` →
@@ -227,7 +227,7 @@ export default async function Layout({ children }: { children: React.ReactNode }
 
 | Prop | Use |
 | --- | --- |
-| `appId` | `"hub"`, `"sales"`, `"calls"`, `"uploader"` or `"punches"`: names the app and picks its tile |
+| `appId` | `"hub"`, `"sales"`, `"pipedrive"`, `"calls"`, `"uploader"` or `"punches"`: names the app and picks its tile |
 | `nav: NavItem[]` | `{ label, href, icon?, match?, badge?, children?, perm? }`. `href` is an in-app path, or an `https://` URL that opens in a new tab. `match`: `"exact"` (default for `/`) or `"prefix"` (default otherwise; the longest match wins). `badge`: a count or tag. `children`: sub-pages. `perm`: shown only to people with that hub permission (still check on the server). |
 | `actions` | Compact buttons in the top bar, before the theme toggle (`<GlassButton size="sm" variant="ghost" className="size-9 p-0" aria-label="Refresh">`). |
 | `fullBleed` | Wallboards: no sidebar, a 48px top bar; the nav stays in the menu sheet and ⌘K. |
@@ -830,7 +830,7 @@ with the theme.
 
 - **Choices.** `light`, `dark` or `system`. `system` follows the operating system live, including a switch while the page is open.
 - **Shared cookie.** The choice is stored in the `ca-theme` cookie:
-  - `Domain=.1cleanair.info` on every 1cleanair.info host, so one choice carries across hub, sales, calls, uploader and punches.
+  - `Domain=.1cleanair.info` on every 1cleanair.info host, so one choice carries across hub, sales, pipedrive, calls, uploader and punches.
   - Host-only on localhost and preview URLs.
   - `Path=/`, one year `Max-Age`, `SameSite=Lax`, and `Secure` on https.
 - **Picking up changes made elsewhere.** An open tab picks up a choice made in another app when the visitor returns to it (focus or visibility). Where the Cookie Store API exists (Chromium), it updates immediately.
