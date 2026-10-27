@@ -24,6 +24,11 @@ export function ReportFiltersProvider({
   return <CompaniesContext value={companies}>{children}</CompaniesContext>;
 }
 
+/** The (dash) layout's company list, for filters outside ReportFilters (Trucks). */
+export function useReportCompanies(): CompanyOption[] {
+  return useContext(CompaniesContext);
+}
+
 /**
  * The date-range and company filters for the report pages (/, /operations,
  * /sales, /service-mix). Both write the URL (?range=, ?company=), which the

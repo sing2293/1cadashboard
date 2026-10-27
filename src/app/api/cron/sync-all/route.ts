@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { refreshTechs, syncPunches } from "@/lib/punches";
 import { runIncrementalSync } from "@/lib/sync/runner";
 import { syncersFor } from "@/lib/sync/syncers";
 
@@ -54,6 +55,30 @@ export async function GET(request: Request) {
         });
       }
     }
+  }
+
+  // Tech hours for the Trucks page: Mobile Punches' last two weeks, then the
+  // techs named on the jobs just synced, linked to their Punches employee.
+  const started = Date.now();
+  try {
+    const punches = await syncPunches(prisma);
+    const techs = await refreshTechs(prisma);
+    summary.push({
+      slug: "punches",
+      resource: "shifts+techs",
+      seen: punches.shifts,
+      upserted: techs.techs,
+      durationMs: Date.now() - started,
+    });
+  } catch (err) {
+    summary.push({
+      slug: "punches",
+      resource: "shifts+techs",
+      seen: 0,
+      upserted: 0,
+      durationMs: Date.now() - started,
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 
   return NextResponse.json({

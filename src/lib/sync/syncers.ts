@@ -5,6 +5,7 @@ import { appointmentsSyncer } from "./resources/appointments";
 import { employeesSyncer } from "./resources/employees";
 import { leadsSyncer } from "./resources/leads";
 import { ordersSyncer } from "./resources/orders";
+import { routesSyncer } from "./resources/routes";
 import { stAppointmentsSyncer } from "./servicetitan/appointments";
 import { stCustomersSyncer } from "./servicetitan/customers";
 import { stEstimatesSyncer } from "./servicetitan/estimates";
@@ -20,6 +21,7 @@ type AnySyncer = ResourceSyncer<unknown, unknown>;
 const SM_SYNCERS = {
   accounts: accountsSyncer,
   employees: employeesSyncer,
+  routes: routesSyncer,
   leads: leadsSyncer,
   orders: ordersSyncer,
   appointments: appointmentsSyncer,

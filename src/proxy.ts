@@ -4,11 +4,13 @@ import {
   createRouteMatcher,
 } from "@clerk/nextjs/server";
 import { NextResponse, type NextRequest } from "next/server";
-import { canOpenApp, canSync, type HubAccess } from "@/lib/hub-access";
+import { canOpenApp, canSeePay, canSync, type HubAccess } from "@/lib/hub-access";
 
 // Vercel Cron checks CRON_SECRET inside the route itself
 const isCronRoute = createRouteMatcher(["/api/cron(.*)"]);
 const isAdminRoute = createRouteMatcher(["/admin(.*)", "/api/admin(.*)"]);
+// Pay rates and each truck's sales after pay: hub admins and "sales:pay".
+const isPayRoute = createRouteMatcher(["/trucks(.*)", "/tech-pay(.*)"]);
 const isApiRoute = createRouteMatcher(["/api(.*)"]);
 
 function forbidden(req: NextRequest, pageFallback: URL) {
@@ -34,6 +36,10 @@ export default clerkMiddleware(async (auth, req) => {
     return res instanceof URL ? NextResponse.rewrite(res) : res;
   }
   if (isAdminRoute(req) && !canSync(meta)) {
+    const res = forbidden(req, new URL("/", req.url));
+    return res instanceof URL ? NextResponse.redirect(res) : res;
+  }
+  if (isPayRoute(req) && !canSeePay(meta)) {
     const res = forbidden(req, new URL("/", req.url));
     return res instanceof URL ? NextResponse.redirect(res) : res;
   }

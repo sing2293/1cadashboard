@@ -32,6 +32,7 @@ model Company {
   activities   Activity[]
   syncStates   SyncState[]
   syncRuns     SyncRun[]
+  routes       Route[]
 
   @@map("companies")
 }
@@ -232,6 +233,8 @@ model Appointment {
 
   @@unique([companyId, smId])
   @@index([companyId, scheduledStart])
+  /// The Trucks page splits an order's value across its jobs.
+  @@index([companyId, smOrderId])
   @@map("appointments")
 }
 
@@ -287,4 +290,92 @@ model Activity {
   @@unique([companyId, smId])
   @@index([companyId, activityType, occurredAt])
   @@map("activities")
+}
+
+// --- Trucks and tech pay ------------------------------------------------------
+
+/// A ServiceMonster route: in practice one truck and its crew. Jobs carry its
+/// id in smPayload.routeID.
+model Route {
+  id        Int      @id @default(autoincrement())
+  companyId Int
+  smId      String
+  name      String
+  isActive  Boolean  @default(true)
+  position  Int?
+  smPayload Json
+  syncedAt  DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, smId])
+  @@map("routes")
+}
+
+/// A field tech as a person, across the ServiceMonster companies: the name
+/// ServiceMonster puts on jobs, the Mobile Punches employee whose hours count
+/// as theirs, and their pay rates.
+model Tech {
+  id                Int      @id @default(autoincrement())
+  /// As ServiceMonster spells it on the most recent job.
+  name              String
+  /// The name folded for matching: lowercase, no accents, single spaces.
+  nameKey           String   @unique
+  punchesEmployeeId String?  @unique
+  /// "auto" when the names matched, "manual" when someone picked the employee.
+  punchesLinkedBy   String?
+  lastSeenOn        DateTime @db.Date
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  punchesEmployee PunchEmployee? @relation(fields: [punchesEmployeeId], references: [id])
+  rates           TechPayRate[]
+
+  @@map("techs")
+}
+
+/// An hourly rate, in force from effectiveFrom until the tech's next one.
+model TechPayRate {
+  id            Int      @id @default(autoincrement())
+  techId        Int
+  hourlyRate    Decimal  @db.Decimal(8, 2)
+  effectiveFrom DateTime @db.Date
+  createdBy     String?
+  createdAt     DateTime @default(now())
+
+  tech Tech @relation(fields: [techId], references: [id], onDelete: Cascade)
+
+  @@unique([techId, effectiveFrom])
+  @@map("tech_pay_rates")
+}
+
+/// An employee from Mobile Punches' export API (time.1cleanair.info).
+model PunchEmployee {
+  /// Mobile Punches' employee_id.
+  id          String    @id
+  name        String
+  lastPunchAt DateTime?
+  syncedAt    DateTime  @default(now())
+
+  tech   Tech?
+  shifts PunchShift[]
+
+  @@map("punch_employees")
+}
+
+/// One Mobile Punches employee's worked hours for one local day.
+model PunchShift {
+  id                Int      @id @default(autoincrement())
+  punchesEmployeeId String
+  date              DateTime @db.Date
+  workedHours       Decimal  @db.Decimal(6, 2)
+  /// An unpaired punch, so the hours are short.
+  incomplete        Boolean  @default(false)
+  syncedAt          DateTime @default(now())
+
+  employee PunchEmployee @relation(fields: [punchesEmployeeId], references: [id], onDelete: Cascade)
+
+  @@unique([punchesEmployeeId, date])
+  @@index([date])
+  @@map("punch_shifts")
 }

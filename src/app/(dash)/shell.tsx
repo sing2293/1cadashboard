@@ -4,20 +4,24 @@ import {
   ChartLine,
   ChartPie,
   Database,
+  HandCoins,
   LayoutDashboard,
   RefreshCw,
+  Truck,
   Wrench,
 } from "lucide-react";
 import { AppShell, type NavItem } from "@1ca/ui/shell";
 
 // Each label is its page's h1. The Sync status link shows only to people
-// holding "sales:sync" (hub admins see it too); proxy.ts still guards /admin
-// on the server.
+// holding "sales:sync", Trucks and Tech pay only to "sales:pay" (hub admins
+// see them all); proxy.ts still guards those routes on the server.
 const NAV: NavItem[] = [
   { label: "Executive overview", href: "/", icon: LayoutDashboard },
   { label: "Operations", href: "/operations", icon: Wrench },
   { label: "Sales", href: "/sales", icon: ChartLine },
   { label: "Service mix", href: "/service-mix", icon: ChartPie },
+  { label: "Trucks", href: "/trucks", icon: Truck, perm: "sales:pay" },
+  { label: "Tech pay", href: "/tech-pay", icon: HandCoins, perm: "sales:pay" },
   {
     label: "Sync status",
     href: "/admin/sync",

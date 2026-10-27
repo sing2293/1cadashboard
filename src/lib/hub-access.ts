@@ -7,7 +7,8 @@
  *   { "apps": ["sales", "calls"] }   → just those apps
  *   {}                               → nothing yet
  * Roles on the hub can also hand out `perms`, e.g. "sales:sync" for the Sync
- * page without making someone a hub administrator.
+ * page, or "sales:pay" for the Trucks and Tech pay pages, without making
+ * someone a hub administrator.
  */
 export const APP_ID = "sales";
 
@@ -27,6 +28,11 @@ export function isHubAdmin(meta: HubAccess | null | undefined): boolean {
 /** Run data syncs (/admin/sync and /api/admin/*). */
 export function canSync(meta: HubAccess | null | undefined): boolean {
   return isHubAdmin(meta) || !!meta?.perms?.includes("sales:sync");
+}
+
+/** See tech pay rates and each truck's sales after pay (/trucks, /tech-pay). */
+export function canSeePay(meta: HubAccess | null | undefined): boolean {
+  return isHubAdmin(meta) || !!meta?.perms?.includes("sales:pay");
 }
 
 export function canOpenApp(meta: HubAccess | null | undefined): boolean {
