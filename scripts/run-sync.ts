@@ -1,24 +1,14 @@
-import "dotenv/config";
+import { config } from "dotenv";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { runIncrementalSync, type ResourceSyncer } from "../src/lib/sync/runner";
-import { accountsSyncer } from "../src/lib/sync/resources/accounts";
-import { employeesSyncer } from "../src/lib/sync/resources/employees";
-import { leadsSyncer } from "../src/lib/sync/resources/leads";
-import { ordersSyncer } from "../src/lib/sync/resources/orders";
-import { appointmentsSyncer } from "../src/lib/sync/resources/appointments";
-import { activitiesSyncer } from "../src/lib/sync/resources/activities";
+import { runIncrementalSync } from "../src/lib/sync/runner";
+import { syncersFor } from "../src/lib/sync/syncers";
 
-const SYNCERS = {
-  accounts: accountsSyncer,
-  employees: employeesSyncer,
-  leads: leadsSyncer,
-  orders: ordersSyncer,
-  appointments: appointmentsSyncer,
-  activities: activitiesSyncer,
-} as const;
+// .env.local first, then .env, as Next.js reads them: the ServiceTitan keys
+// sit in .env.local beside the Clerk keys.
+config({ path: [".env.local", ".env"] });
 
-function parseArgs(): { slug: string; resource: keyof typeof SYNCERS; backfillMonths: number } {
+function parseArgs(): { slug: string; resource: string; backfillMonths: number } {
   const args = Object.fromEntries(
     process.argv.slice(2).map((a) => {
       const [k, v] = a.replace(/^--/, "").split("=");
@@ -26,9 +16,8 @@ function parseArgs(): { slug: string; resource: keyof typeof SYNCERS; backfillMo
     }),
   );
   const slug = args.slug ?? "1cleanair";
-  const resource = (args.resource ?? "accounts") as keyof typeof SYNCERS;
+  const resource = args.resource ?? "accounts";
   const backfillMonths = Number(args.backfillMonths ?? "24");
-  if (!SYNCERS[resource]) throw new Error(`Unknown resource: ${resource}`);
   return { slug, resource, backfillMonths };
 }
 
@@ -49,16 +38,21 @@ async function main() {
   const company = await prisma.company.findUnique({ where: { slug } });
   if (!company) throw new Error(`Unknown company slug: ${slug}`);
 
+  const syncers = syncersFor(company);
+  const syncer = syncers[resource];
+  if (!syncer) {
+    throw new Error(
+      `Unknown resource for ${slug}: ${resource} (one of ${Object.keys(syncers).join(", ")})`,
+    );
+  }
+
   console.log(
     `[sync] ${resource} for ${slug} (companyId=${company.id}), backfill=${backfillMonths} months`,
   );
 
-  const result = await runIncrementalSync(
-    prisma,
-    company,
-    SYNCERS[resource] as ResourceSyncer<unknown>,
-    { initialCursorIfEmpty: monthsAgo(backfillMonths) },
-  );
+  const result = await runIncrementalSync(prisma, company, syncer, {
+    initialCursorIfEmpty: monthsAgo(backfillMonths),
+  });
 
   console.log("\n[sync] DONE");
   console.log(`  syncRunId:       ${result.syncRunId}`);

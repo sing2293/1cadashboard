@@ -18,6 +18,13 @@ const companies = [
     slug: "enviroduct",
     smCompanyId: "c770b328-26e8-11ec-8d04-c04d03c0d409",
   },
+  // The HVAC division runs on ServiceTitan (one tenant, ST_* env vars).
+  {
+    name: "HVAC",
+    slug: "hvac",
+    smCompanyId: "",
+    source: "servicetitan",
+  },
 ];
 
 async function main() {
@@ -30,9 +37,11 @@ async function main() {
     const row = await prisma.company.upsert({
       where: { slug: c.slug },
       create: c,
-      update: { name: c.name, smCompanyId: c.smCompanyId },
+      update: { name: c.name, smCompanyId: c.smCompanyId, source: c.source },
     });
-    console.log(`  ${row.slug.padEnd(11)} id=${row.id} smCompanyId=${row.smCompanyId || "(unset)"}`);
+    console.log(
+      `  ${row.slug.padEnd(11)} id=${row.id} source=${row.source} smCompanyId=${row.smCompanyId || "(unset)"}`,
+    );
   }
 
   await prisma.$disconnect();

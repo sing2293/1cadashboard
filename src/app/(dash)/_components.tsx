@@ -55,6 +55,7 @@ const COMPANY_SLOT: Record<string, ChartSlot> = {
   "1cleanair": 1,
   homedepot: 2,
   enviroduct: 3,
+  hvac: 4,
 };
 
 const CATEGORY_SLOT: Record<string, ChartSlot> = {

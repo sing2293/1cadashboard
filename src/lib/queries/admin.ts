@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { syncersFor } from "@/lib/sync/syncers";
 
 export type SyncStatusRow = {
   companyId: number;
@@ -11,21 +12,12 @@ export type SyncStatusRow = {
   cursorAt: Date | null;
 };
 
-const RESOURCES = [
-  "accounts",
-  "employees",
-  "leads",
-  "orders",
-  "appointments",
-  "activities",
-] as const;
-
 export async function getSyncStatus(): Promise<SyncStatusRow[]> {
   const companies = await prisma.company.findMany({ orderBy: { id: "asc" } });
 
   const rows: SyncStatusRow[] = [];
   for (const c of companies) {
-    for (const resource of RESOURCES) {
+    for (const resource of Object.keys(syncersFor(c))) {
       const [latestRun, state] = await Promise.all([
         prisma.syncRun.findFirst({
           where: { companyId: c.id, resource },

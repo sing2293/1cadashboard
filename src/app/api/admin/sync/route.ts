@@ -1,26 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { runIncrementalSync, type ResourceSyncer } from "@/lib/sync/runner";
-import { accountsSyncer } from "@/lib/sync/resources/accounts";
-import { employeesSyncer } from "@/lib/sync/resources/employees";
-import { leadsSyncer } from "@/lib/sync/resources/leads";
-import { ordersSyncer } from "@/lib/sync/resources/orders";
-import { appointmentsSyncer } from "@/lib/sync/resources/appointments";
-import { activitiesSyncer } from "@/lib/sync/resources/activities";
+import { runIncrementalSync } from "@/lib/sync/runner";
+import { syncersFor } from "@/lib/sync/syncers";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
-
-const SYNCERS = {
-  accounts: accountsSyncer,
-  employees: employeesSyncer,
-  leads: leadsSyncer,
-  orders: ordersSyncer,
-  appointments: appointmentsSyncer,
-  activities: activitiesSyncer,
-} as const;
-
-type SyncerName = keyof typeof SYNCERS;
 
 function monthsAgo(n: number): Date {
   const d = new Date();
@@ -31,19 +15,12 @@ function monthsAgo(n: number): Date {
 export async function POST(request: Request) {
   const url = new URL(request.url);
   const slug = url.searchParams.get("slug");
-  const resource = url.searchParams.get("resource") as SyncerName | null;
+  const resource = url.searchParams.get("resource");
   const backfillMonths = Number(url.searchParams.get("backfillMonths") ?? "24");
 
   if (!slug || !resource) {
     return NextResponse.json(
       { error: "slug and resource query params are required" },
-      { status: 400 },
-    );
-  }
-  const syncer = SYNCERS[resource];
-  if (!syncer) {
-    return NextResponse.json(
-      { error: `unknown resource: ${resource}` },
       { status: 400 },
     );
   }
@@ -53,13 +30,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: `unknown company: ${slug}` }, { status: 404 });
   }
 
-  try {
-    const result = await runIncrementalSync(
-      prisma,
-      company,
-      syncer as ResourceSyncer<unknown>,
-      { initialCursorIfEmpty: monthsAgo(backfillMonths) },
+  const syncers = syncersFor(company);
+  const syncer = syncers[resource];
+  if (!syncer) {
+    return NextResponse.json(
+      {
+        error: `unknown resource for ${slug}: ${resource} (one of ${Object.keys(syncers).join(", ")})`,
+      },
+      { status: 400 },
     );
+  }
+
+  try {
+    const result = await runIncrementalSync(prisma, company, syncer, {
+      initialCursorIfEmpty: monthsAgo(backfillMonths),
+    });
     return NextResponse.json({ ok: true, slug, resource, ...result });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

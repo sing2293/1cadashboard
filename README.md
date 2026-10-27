@@ -1,6 +1,6 @@
-# Sales Dashboard (ServiceMonster)
+# Sales Dashboard (ServiceMonster + ServiceTitan)
 
-Internal analytics dashboard that unifies data from three ServiceMonster accounts (1CleanAir, Home Depot partnership, Enviro Duct Cleaning) into a single Postgres database and web UI. It lives at `sales.1cleanair.info` and is listed in the 1CleanAir Hub as "Sales Dashboard".
+Internal analytics dashboard that unifies data from three ServiceMonster accounts (1CleanAir, Home Depot partnership, Enviro Duct Cleaning) and the HVAC division's ServiceTitan tenant into a single Postgres database and web UI. It lives at `sales.1cleanair.info` and is listed in the 1CleanAir Hub as "Sales Dashboard".
 
 ## Stack
 
@@ -10,7 +10,33 @@ Internal analytics dashboard that unifies data from three ServiceMonster account
 - Prisma 7 with `@prisma/adapter-pg`
 - Postgres via [Neon](https://neon.tech)
 - Sync runs as a Vercel Cron → API route (no BullMQ/Redis)
-- ServiceMonster API credentials stored as Vercel env vars
+- ServiceMonster and ServiceTitan API credentials stored as Vercel env vars
+
+## Companies and data sources
+
+Each row in `companies` has a `source`: `servicemonster` (1CleanAir, Home Depot, Enviro Duct; one SM login each) or `servicetitan` (HVAC, slug `hvac`; one tenant). Both fill the same tables, so every page and query works for every company; for HVAC the `sm*` columns hold ServiceTitan ids. `src/lib/sync/syncers.ts` lists the resources synced for each source:
+
+| ServiceMonster | ServiceTitan | Table |
+| --- | --- | --- |
+| `accounts` | `customers` | `accounts` |
+| `orders` | `invoices` (line items come inline) | `orders` + `order_items` |
+| (in `orders`) | `estimates` | `orders` (`orderType` `Estimate`) |
+| `appointments` | `appointments` | `appointments` |
+| `leads` | `leads` | `leads` |
+| `employees`, `activities` | (none) | |
+
+Every ServiceTitan job has an invoice from the moment it's booked, so HVAC invoices are typed by what they are, and only `Invoice` counts as revenue, as on ServiceMonster:
+
+- no invoice date yet (job not done): `Work Order`
+- $0 (plan tune-ups, warranty and no-charge visits, about two thirds of them): `No Charge`
+- deactivated: `Voided`
+- anything else, credits included: `Invoice`, dated by its invoice date
+
+What HVAC doesn't have yet:
+
+- Tech utilization on `/operations`: actual on-site time is on ServiceTitan timesheets, not appointments.
+- Lead sources: they are job campaigns in ServiceTitan.
+- Service-mix categories: HVAC items aren't mapped to the service catalog, so they show under top items only.
 
 ## Pages
 
@@ -66,9 +92,9 @@ This repo uses pnpm 10 (`packageManager` in `package.json`).
 pnpm install              # also runs prisma generate (postinstall)
 cp .env.example .env
 # Fill in DATABASE_URL (Neon pooled URL) and SM_USER_*/SM_PASS_* in .env,
-# and the Clerk keys (see "Sign-in and access")
+# the ST_* keys and the Clerk keys (see "Sign-in and access") in .env.local
 pnpm exec prisma migrate dev
-pnpm db:seed              # seed the 3 companies metadata
+pnpm db:seed              # seed the 4 companies metadata
 pnpm db:seed-services     # seed the canonical service catalog
 pnpm dev
 ```
@@ -87,7 +113,16 @@ for slug in 1cleanair homedepot enviroduct; do
   pnpm sync:items --slug=$slug
 done
 pnpm normalize
+
+# HVAC (ServiceTitan). Customers go back further: a few invoices belong to
+# customers nobody has edited in two years.
+pnpm sync --slug=hvac --resource=customers --backfillMonths=120
+for resource in invoices estimates appointments leads; do
+  pnpm sync --slug=hvac --resource=$resource --backfillMonths=24
+done
 ```
+
+`pnpm sync` reads `.env.local` and then `.env`, like Next.js.
 
 Subsequent runs are incremental (cursor-tracked); the Vercel cron handles them.
 
@@ -138,11 +173,15 @@ src/
     sm/
       client.ts             # SM REST client (Basic auth, retry, paginate)
       time.ts               # tz-naive timestamp parse/format
+    st/
+      client.ts             # ServiceTitan REST client (OAuth2 + app key, retry, paginate)
     sync/
       runner.ts             # generic incremental sync driver
+      syncers.ts            # which resources sync for a company, by its source
       order-items.ts        # invoice line-item backfill (N+1 fetch)
       normalize.ts          # raw name → ServiceCatalog resolver
-      resources/            # per-resource syncers
+      resources/            # per-resource syncers (ServiceMonster)
+      servicetitan/         # per-resource syncers (ServiceTitan, HVAC)
     queries/                # one module per dashboard
 scripts/
   run-sync.ts
@@ -159,6 +198,7 @@ scripts/
    - `SM_USER_1CLEANAIR`, `SM_PASS_1CLEANAIR`
    - `SM_USER_HOMEDEPOT`, `SM_PASS_HOMEDEPOT`
    - `SM_USER_ENVIRODUCT`, `SM_PASS_ENVIRODUCT`
+   - `ST_ENV=production`, `ST_TENANT_ID`, `ST_CLIENT_ID`, `ST_CLIENT_SECRET`, `ST_APP_KEY`: the HVAC division's ServiceTitan app (the same one the internal booking tool uses)
    - `CRON_SECRET`: random string; Vercel auto-attaches it as `Authorization: Bearer …` on cron requests.
    - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`: the hub Clerk app's live keys.
    - `NEXT_PUBLIC_CLERK_SIGN_IN_URL=https://www.1cleanair.info/sign-in`, `NEXT_PUBLIC_CLERK_SIGN_UP_URL=https://www.1cleanair.info/sign-up`, `NEXT_PUBLIC_HUB_URL=https://www.1cleanair.info`

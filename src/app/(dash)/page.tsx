@@ -135,7 +135,7 @@ export default async function ExecutivePage({
               hint="Invoiced"
               sparkline={
                 // The total belongs to no single entity, and every chart slot on
-                // this page is already one (companies 1-3, categories 1-8; slot 1
+                // this page is already one (companies 1-4, categories 1-8; slot 1
                 // is 1CleanAir), so it takes the accent rather than a slot.
                 <Sparkline
                   data={monthlyTotals}
@@ -248,7 +248,7 @@ export default async function ExecutivePage({
         )}
 
         <Section title="Companies" description="Open a company for its own executive view">
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {companies.map((c) => (
               <Card
                 key={c.slug}

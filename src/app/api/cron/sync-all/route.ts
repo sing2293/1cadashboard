@@ -1,24 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { runIncrementalSync, type ResourceSyncer } from "@/lib/sync/runner";
-import { accountsSyncer } from "@/lib/sync/resources/accounts";
-import { employeesSyncer } from "@/lib/sync/resources/employees";
-import { leadsSyncer } from "@/lib/sync/resources/leads";
-import { ordersSyncer } from "@/lib/sync/resources/orders";
-import { appointmentsSyncer } from "@/lib/sync/resources/appointments";
-import { activitiesSyncer } from "@/lib/sync/resources/activities";
+import { runIncrementalSync } from "@/lib/sync/runner";
+import { syncersFor } from "@/lib/sync/syncers";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
-
-const SYNCERS = [
-  accountsSyncer,
-  employeesSyncer,
-  leadsSyncer,
-  ordersSyncer,
-  appointmentsSyncer,
-  activitiesSyncer,
-];
 
 function unauthorized() {
   return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
@@ -45,14 +31,11 @@ export async function GET(request: Request) {
   }> = [];
 
   for (const company of companies) {
-    for (const syncer of SYNCERS) {
+    for (const syncer of Object.values(syncersFor(company))) {
       try {
-        const r = await runIncrementalSync(
-          prisma,
-          company,
-          syncer as ResourceSyncer<unknown>,
-          { initialCursorIfEmpty },
-        );
+        const r = await runIncrementalSync(prisma, company, syncer, {
+          initialCursorIfEmpty,
+        });
         summary.push({
           slug: company.slug,
           resource: syncer.resource,

@@ -40,7 +40,7 @@ export function ReportFilters() {
       </ToolbarGroup>
       <ToolbarSpacer />
       <p className="hidden text-xs text-ca-muted lg:block">
-        ServiceMonster data · amounts in CAD
+        ServiceMonster + ServiceTitan (HVAC) data · amounts in CAD
       </p>
     </FilterBar>
   );

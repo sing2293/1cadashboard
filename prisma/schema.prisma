@@ -1,6 +1,8 @@
 // ServiceMonster unified dashboard — Postgres schema
 // See SERVICEMONSTER_DASHBOARD_SPEC.md §4.2 for the source shape.
 // Deviations from spec: no Company.apiTokenEncrypted (tokens are Vercel env vars).
+// A company with source "servicetitan" (HVAC) fills the same tables from
+// ServiceTitan: its sm* columns hold ServiceTitan ids and timestamps.
 
 generator client {
   provider = "prisma-client-js"
@@ -15,6 +17,8 @@ model Company {
   name        String   @unique
   slug        String   @unique
   smCompanyId String   @default("")
+  /// "servicemonster" or "servicetitan": where this company's data is synced from.
+  source      String   @default("servicemonster")
   timezone    String   @default("America/Toronto")
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())

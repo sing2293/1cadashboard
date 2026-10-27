@@ -3,6 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { SmClient } from "../src/lib/sm/client";
 import { syncOrderItems } from "../src/lib/sync/order-items";
+import { SERVICETITAN } from "../src/lib/sync/syncers";
 
 function parseArgs(): { slug: string; force: boolean } {
   const args = Object.fromEntries(
@@ -27,6 +28,11 @@ async function main() {
 
   const company = await prisma.company.findUnique({ where: { slug } });
   if (!company) throw new Error(`Unknown company: ${slug}`);
+  if (company.source === SERVICETITAN) {
+    console.log(`[order-items] ${slug}: ServiceTitan invoices bring their items with them; nothing to do.`);
+    await prisma.$disconnect();
+    return;
+  }
 
   const sm = SmClient.fromEnv(slug);
 

@@ -9,10 +9,15 @@ export type SyncRunResult = {
   durationMs: number;
 };
 
-export interface ResourceSyncer<TRaw> {
+export interface ResourceSyncer<TRaw, TClient = SmClient> {
   resource: string;
+  /**
+   * Build the API client for a company. Defaults to the company's own
+   * ServiceMonster login (SM_USER_<SLUG> / SM_PASS_<SLUG>).
+   */
+  connect?: (company: { slug: string }) => TClient;
   /** Iterate pages of raw rows. Owns its own pagination strategy. */
-  fetchPages: (sm: SmClient, fromCursor: Date) => AsyncGenerator<TRaw[], void, void>;
+  fetchPages: (client: TClient, fromCursor: Date) => AsyncGenerator<TRaw[], void, void>;
   /** Extract a Date for SyncState cursor advancement; null if this resource has no time field. */
   extractCursor: (raw: TRaw) => Date | null;
   /** Stable per-row identifier (the SM record ID), used for cross-page de-dup. */
@@ -36,10 +41,10 @@ export type SyncOptions = {
  * Incremental sync driver. Advances SyncState.lastCursor only on full success;
  * on error, records the run but leaves the cursor so the next run retries.
  */
-export async function runIncrementalSync<TRaw>(
+export async function runIncrementalSync<TRaw, TClient>(
   prisma: PrismaClient,
   company: { id: number; slug: string },
-  syncer: ResourceSyncer<TRaw>,
+  syncer: ResourceSyncer<TRaw, TClient>,
   options: SyncOptions,
 ): Promise<SyncRunResult> {
   const startedAt = Date.now();
@@ -64,8 +69,11 @@ export async function runIncrementalSync<TRaw>(
   let newCursor = cursor;
 
   try {
-    const sm = SmClient.fromEnv(company.slug);
-    const iterator = syncer.fetchPages(sm, cursor);
+    // Without `connect` the syncer is a ServiceMonster one, so TClient is SmClient.
+    const client = syncer.connect
+      ? syncer.connect(company)
+      : (SmClient.fromEnv(company.slug) as TClient);
+    const iterator = syncer.fetchPages(client, cursor);
 
     const seen = new Set<string>();
     let pageNum = 0;
